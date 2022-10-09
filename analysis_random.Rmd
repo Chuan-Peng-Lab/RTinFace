@@ -1,0 +1,134 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r random forest}
+#install.packages("randomForest")
+library(randomForest)
+
+# Create the forest
+output.forest <- randomForest(rt ~ ., data = data2209)
+
+# View the forest results.
+print(output.forest) 
+
+# Importance of each predictor.
+print(importance(fit,type = 2)) 
+
+
+```
+```{r}
+data2209NA = na.exclude(data2209)
+```
+
+
+
+```{r Dataset}
+#Installing package
+#install.packages("caTools")	 # For sampling the dataset
+
+# Split into Train and Validation sets
+# Training Set : Validation Set = 70 : 30 (random)
+set.seed(100)
+train <- sample(nrow(data2209NA), 0.1*nrow(data2209NA), replace = FALSE)
+TrainSet <- data2209NA[train,]
+ValidSet <- data2209NA[-train,]
+#memory.limit(size = 35000) 
+#model1 <- randomForest(rt ~ rating + Race + language, ValidSet, importance = TRUE)
+
+#model1 <- randomForest(rating ~ ., data = TrainSet, importance = TRUE)
+#model1
+```
+
+
+
+```{r regression model1}
+install.packages("randomForest")
+library(randomForest)
+set.seed(100)
+train <- sample(nrow(data2209NA), 0.1*nrow(data2209NA), replace = FALSE)
+TrainSet <- data2209NA[train,]
+ValidSet <- data2209NA[-train,]
+#memory.limit(size = 35000) 
+#model1 <- randomForest(rt ~ ., ValidSet, importance = TRUE)
+```
+
+
+```{r regression model 2}
+# Fine tuning parameters of Random Forest model
+library(randomForest)
+memory.limit(size = 50000) 
+model2 <- randomForest(rating ~ rt +  Race, data = ValidSet, ntree = 500, mtry = 2, importance = TRUE)
+model2
+#fail, over 1h 
+```
+Why there's no matrix
+
+```{r classification}
+#install.packages("MASS")
+library(randomForest)
+library(MASS)
+set.seed(17)
+memory.limit(size = 35000) 
+model3 <- randomForest(rt ~ rating + Race + Gender + Age + ethnicity.y, data = ValidSet, mtry = 2, importance = TRUE, do.trace = 100)
+
+model3
+```
+
+
+```{r setseed}
+#install.packages("party")
+library(party)
+set.seed (5)
+data.controls <- cforest_unbiased(ntree=1000, mtry=4)
+model4<- cforest(rt ~ rating + Race + Gender + Age, ValidSet,
+                        control = data.controls) 
+myvarimp_model4 <-varimp(model4)
+dotplot_model4 <-dotplot(sort(myvarimp_model4), xlab="Variable Importance (predictors to right of dashed line differ from noise)", panel=function(x,y) {panel.dotplot(x, y, col='darkblue', pch=16, cex=1.1) 
+  panel.abline(v=abs(min(myvarimp_model4)), col='red', lty='longdash', lwd=2)})
+
+```
+
+```{r adaboost package}
+library(adabag)
+library(ggplot2)
+
+```
+
+```{r adaboost}
+
+#AdaBoost algorithm with different numbers of classifiers
+error <- as.numeric()
+TrainSet_orig = TrainSet
+ValidSet_orig = ValidSet
+
+TrainSet$rt = as.factor(TrainSet$rt)
+
+
+for(i in 1:20){
+  data.adaboost <- boosting(rt~., data=TrainSet, mfinal=i)
+  data.pred <- predict.boosting(data.adaboost, newdata = TrainSet)
+  error[i] <- data.pred$error
+}
+
+error <- as.data.frame(error)
+p <- ggplot(error,aes(x=1:20,y=error))+
+  geom_line(colour="red", linetype="dashed",size = 1)+
+  geom_point(size=3, shape=18)+
+  ylim(0.13,0.45) +
+  xlab("the number of basic classifiers")+
+  theme_bw()+
+  theme(panel.grid = element_blank())+
+  theme(axis.title = element_text(face = "bold"))
+
+p
+```
+
+```{r}
+write.csv(stim_info, file = "full_data/stim_info.csv")
+```
+
+
+
