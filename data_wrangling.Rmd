@@ -1,0 +1,293 @@
+---
+title: "Untitled"
+author: "Pac"
+date: '2022-10-10'
+output: html_document
+---
+
+
+
+full data里的psa001_source_to_raw文件
+作用是：
+  从数据库中读取数据，并筛选出需要的被试数据（guest、registered）将admin、test等测试数据排除，排除NA，整理proj_name（用于之后的抽样等）。
+  输出3个文件"data/psa001_session.csv"、"data/psa001_quest_data.csv"、"data/psa001_exp_data.csv"是最完整最原始的文件
+
+full data里的psa001_RR2_analysis文件
+作用是：
+  整理数据的结构方便后续的分析和画图，重新命名一些变量内容方便后续的读取和绘图
+  通过三个方面进一步清洗了数据：
+1 did not complete 1+ ratings for each of 120 stimuli
+2 did not specify region (none expected)
+3 exclude Ps with low variance
+  对数据进行了描述和分析
+  读取了O&T 2008的数据，进行了比较验证
+  做了EFA，并将结果和地区等因素进行了分析
+输出了"data/psa001_ratings_raw.csv"
+
+Exploratory data里的psa001_RR2_subset文件
+作用是：
+  从每个实验室分别抽取1/3的被试，原始数据是读取full data里的数据，将实验数据和问卷数据进行了合并，后续分析和full data中的psa001_RR2_analysis类似。
+
+```{r libraries messages = FALSE}
+library(tidyverse)
+
+R.version.string
+
+set.seed(8675309)
+```
+
+```{r read-data}
+session <- read_csv("data/psa001_session.csv")
+dat_quest <- read_csv("data/psa001_quest_data.csv")
+dat_exp <- read_csv("data/psa001_exp_data.csv")
+
+```
+
+```{r subset-data}
+session_subset <- session %>% 
+  filter(user_status %in% c("guest","registered")) %>% #选取
+  group_by(proj_name) %>% #按照每个国家每个实验室排序
+  sample_frac(1/3) %>% #结合group进行分层抽样
+  ungroup() %>% #取消组合
+  pull(session_id)#存为一个向量
+
+```
+
+#利用session_subset对数据进行筛选
+```{r}
+session %>%
+  filter(session_id %in% session_subset) %>%
+  write_csv("data/psa001_session_subset.csv")
+
+dat_exp %>%
+  filter(session_id %in% session_subset) %>%
+  write_csv("data/psa001_exp_data_subset.csv")
+
+dat_quest %>%
+  filter(session_id %in% session_subset) %>%
+  write_csv("data/psa001_quest_data_subset.csv")
+```
+
+#读取数据并且对quest进行行列转换
+```{r}
+session <- read_csv("data/psa001_session_subset.csv")
+dat_quest <- read_csv("data/psa001_quest_data_subset.csv")
+dat_exp <- read_csv("data/psa001_exp_data_subset.csv")
+```
+
+```{r}
+quest <- dat_quest %>%
+  select(session_id, endtime, user_id, q_name, dv) %>%#q_name是转换后的变量名，dv是转换后的变量值，
+  group_by(session_id, user_id, q_name) %>%#
+  arrange(endtime) %>%#排序
+  filter(row_number() == 1) %>%#根据排序的结果，取session_id、userid重复的第一个批数据（一个字段对应了多个值）
+  ungroup() %>%#取消分组
+  spread(q_name, dv, convert = TRUE)#长转
+
+#quest1 <- dat_quest %>% 
+  #select(session_id, endtime, user_id, q_name, dv) %>% 
+  #group_by(session_id, user_id, q_name) %>%
+  #arrange(endtime) %>% 
+  #filter(row_number() == 1)
+#quest2 <- dat_quest %>% 
+  #select(session_id, endtime, user_id, q_name, dv) %>% 
+  #group_by(session_id, user_id, q_name)
+  
+```
+
+#合并需要的数据
+```{r}
+raw <- dat_exp %>% 
+  left_join(session, by = c("user_id", "session_id")) %>%  #通过userid和sessionid共同确定加入的session内容
+  filter(user_status %in% c("guest","registered")) %>% #再次确认只有被试数据没有测试数据
+  separate(exp_name,c("psa", "language", "trait", "block"),sep = "_")
+
+raw <- raw %>%
+  select(-psa) %>% #去除separate出来的没有用的psa
+  separate(proj_name, c("psa", "lang", "lab1", "lab2"), sep = "_", fill = "right")#将proj_name拆分
+  
+raw <- raw %>%
+  filter(lab1 != "test") %>%#因为数据里测试，在lab1里表示为test，将其删除
+  unite(lab_id, c("lab1", "lab2"))#删除test后合并labid
+
+raw <- raw %>%
+  select(-psa, lang)
+
+raw <- raw %>% 
+  left_join(quest, by = c("session_id", "user_id")) %>% #载入quest内的变量
+  select(language, user_id = session_id, trait, 
+         stim_id = trial_name, 
+         order, rt, rating = dv,
+         country, sex, age, ethnicity, lab = lab_id, block) %>%
+  mutate(trait = recode(trait,
+                        "Res" = "responsible",
+                        "Wei" = "weird",
+                        "Old" = "old",
+                        "Tru" = "trustworthy",
+                        "Dom" = "dominant",
+                        "Emo" = "emostable",
+                        "Agg" = "aggressive",
+                        "Car" = "caring",
+                        "Int" = "intelligent",
+                        "Unh" = "unhappy",
+                        "Soc" = "sociable",
+                        "Mea" = "mean",
+                        "Con" = "confident",
+                        "Att" = "attractive"
+  )) 
+write_csv(raw, "data/psa001_raw_subset.csv")
+
+
+regions <- read_csv("data/regions.csv")
+
+ratings <- raw %>% 
+  rename(qcountry = country) %>%
+  separate(lab, c("country", "lab")) %>%
+  left_join(regions, by = "country") %>%
+  filter(trait != "old")
+
+```
+
+#画图的风格设定
+```{r}
+# plot styles
+bgcolor <- "white"
+textcolor <- "black"
+PSA_theme <- theme(
+    plot.background = element_rect(fill = bgcolor, color = NA),
+    panel.background = element_rect(fill = NA, color = "grey"),
+    legend.background = element_rect(fill = NA),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    text = element_text(color = textcolor, size=15),
+    axis.text = element_text(color = textcolor, size=10),
+    strip.text.y = element_text(angle = 0, hjust = 0)
+  )
+```
+
+#不同地区对不同特质的评分分布
+```{r trait-by-region-plot, fig.width=15, fig.height=6}
+ggplot(ratings, aes(rating, fill = trait)) +
+  geom_histogram(binwidth = 1, color = "grey", show.legend = F) +
+  facet_grid(region~trait, space = "free") +
+  scale_x_continuous(breaks = 1:9) +
+  PSA_theme
+```
+
+```{r}
+part <- ratings %>%
+  group_by(user_id, sex, age, country, language, trait, region, lab) %>%
+  summarise(trials = n(),
+            stim_n = n_distinct(stim_id)) %>%
+  ungroup()#之后会有一个警告，它有助于使用户知道已执行分组。但是，该消息对最终结果没有影响
+
+#每个地区有多少人完成了120次
+part %>% 
+  mutate(n120 = ifelse(stim_n == 120, "rated all 120", "rated < 120")) %>%
+  count(region, n120) %>%
+  spread(n120, n) 
+
+
+```
+#没有全部完成240试次的
+```{r}
+part %>% 
+  mutate(n240 = case_when(
+    trials == 240 ~ "rated 240", 
+    trials > 240 ~ "rated > 240",
+    trials < 120 ~ "rated < 120",
+    trials < 240 ~ "rated 120-239"
+  )) %>%
+  count(region, n240) %>%
+  spread(n240, n, fill = 0)
+
+
+```
+
+```{r}
+identical_rating_threshold <- 0.75 * 120 # use this for registered analyses
+
+inv_participants <- ratings %>%
+  filter(block == 1) %>%
+  count(user_id, region, trait, rating) %>%
+  group_by(user_id, region, trait) %>%
+  filter(n == max(n)) %>% # find most common rating for each P
+  ungroup() %>%
+  filter(n >= identical_rating_threshold) # select Ps who gave the same rating to >= 75% of stimuli
+
+inv <- inv_participants %>%
+  count(region, trait) %>%
+  spread(region, n, fill = 0) %>%
+  mutate(TOTAL = rowSums(select_if(., is.numeric), na.rm = T))
+
+inv_total <-  group_by(inv) %>% 
+  summarise_if(is.numeric, sum, na.rm = T) %>%
+  mutate(trait = "TOTAL")
+ 
+bind_rows(inv,inv_total)
+```
+
+```{r}
+part %>% 
+  filter(is.na(region)) %>%
+  select(user_id, country, lab)
+```
+
+```{r}
+data_all <- ratings %>%
+  group_by(user_id, trait) %>%
+  filter(
+    # did not complete 1+ ratings for each of 120 stimuli
+    dplyr::n_distinct(stim_id) == 120,      
+    !is.na(region)   # did not specify region (none expected)
+  ) %>%
+  anti_join(inv_participants, by = "user_id") %>% # exclude Ps with low variance
+  ungroup()
+```
+
+###计算rating的平均数
+```{r}
+data_rating <- ratings %>%
+  group_by(user_id, trait) %>%
+  filter(
+    # did not complete 1+ ratings for each of 120 stimuli
+    dplyr::n_distinct(stim_id) == 120,      
+    !is.na(region)   # did not specify region (none expected)
+  ) %>%
+  anti_join(inv_participants, by = "user_id") %>% # exclude Ps with low variance
+  ungroup() %>%
+  group_by(user_id, age, sex, ethnicity, language, lab, country, region, trait, stim_id) %>%
+  summarise(rating = mean(rating)) %>% # average ratings across 2 
+  ungroup()
+```
+
+
+###计算rt的平均数
+```{r}
+data_rt <- ratings %>%
+  group_by(user_id, trait) %>%
+  filter(
+    # did not complete 1+ ratings for each of 120 stimuli
+    dplyr::n_distinct(stim_id) == 120,      
+    !is.na(region)   # did not specify region (none expected)
+  ) %>%
+  anti_join(inv_participants, by = "user_id") %>% # exclude Ps with low variance
+  ungroup() %>%
+  group_by(user_id, age, sex, ethnicity, language, lab, country, region, trait, stim_id ) %>%
+  summarise(rt = mean(rt)) %>% # average rt across 2 
+  ungroup()
+```
+
+
+```{r}
+data_fin <- data_rating %>% 
+  mutate(rt=data_rt$rt)
+```
+
+```{r}
+write_csv(data_fin,"data/data_wrangling1.csv")
+```
+
+
+ 
+
