@@ -1,0 +1,84 @@
+---
+title: "Untitled"
+author: "Pac"
+date: '2022-11-04'
+output: html_document
+---
+
+```{r}
+library("tidyverse")
+```
+
+```{r}
+fulldata <- read.csv("data/TrainSet.csv")
+```
+
+```{r}
+summary(fulldata)
+```
+
+```{r}
+lan <- fulldata %>% 
+  group_by(language) %>% 
+  summarise(N=n())
+#view(lan)
+lan %>%
+  ggplot(aes(x=reorder(language,N),y=N,fill=N))+
+  geom_col()+
+  coord_flip()+
+  theme_minimal()
+```
+```{r}
+traits <- fulldata %>% 
+  group_by(trait) %>% 
+  summarise(N=n())
+
+traits %>% 
+  ggplot(aes(x=reorder(trait,N),y=N,fill=N))+
+  geom_col()+
+  coord_flip()+
+  theme_minimal()
+```
+
+```{r}
+country <- fulldata %>% 
+  group_by(country) %>% 
+  summarise(N=n())
+
+country %>% 
+  ggplot(aes(x = reorder(country,N),y=N,fill=N))+
+           geom_col()+
+           coord_flip()+
+           theme_minimal()
+           
+```
+
+```{r}
+ethnicity_participants <- fulldata %>% 
+  group_by(ethnicity.x) %>% 
+  summarise(N=n())
+
+ethnicity_participants %>%
+  filter(N>500) %>% 
+  filter(ethnicity.x!="NA") %>% 
+  ggplot(aes(x = reorder(ethnicity.x,N),y=N,fill=N))+
+           geom_col()+
+           coord_flip()+
+           theme_minimal()
+```
+
+```{r}
+
+```
+
+```{r}
+fulldata %>% 
+  ggplot(aes(rt, fill = trait)) +
+    geom_histogram() +
+    facet_grid(gender~trait, space = "free") +
+    scale_x_continuous(breaks = c(2000,3000))
+```
+
+
+
+
