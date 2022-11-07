@@ -14,6 +14,8 @@ fulldata <- read.csv("data/TrainSet.csv")
 ```
 
 ```{r}
+fulldata <- fulldata %>% 
+  filter(rt<10000 & rt>0)
 summary(fulldata)
 ```
 
@@ -46,6 +48,8 @@ country <- fulldata %>%
   summarise(N=n())
 
 country %>% 
+  filter(country != "NA") %>% 
+  filter(N > 200) %>%
   ggplot(aes(x = reorder(country,N),y=N,fill=N))+
            geom_col()+
            coord_flip()+
@@ -66,18 +70,67 @@ ethnicity_participants %>%
            coord_flip()+
            theme_minimal()
 ```
-
+###面孔信息
 ```{r}
+race <- fulldata %>% 
+  group_by(Race) %>% 
+  summarise(N=n())
+race %>% 
+  ggplot(aes(x=reorder(Race,N),y=N,fill=N))+
+  geom_col()+
+  coord_flip()+
+  theme_minimal()
 
+ethnicity_face <- fulldata %>% 
+  group_by(ethnicity.y) %>% 
+  summarise(N=n())
+ethnicity_face %>% 
+  ggplot(aes(x=reorder(ethnicity.y,N),y=N,fill=N))+
+  geom_col()+
+  coord_flip()+
+  theme_minimal()
+
+gender_face <- fulldata %>% 
+  group_by(gender) %>% 
+  summarise(N=n())
+gender_face %>% 
+  ggplot(aes(x=reorder(gender,N),y=N,fill=N))+
+  geom_col()+
+  coord_flip()+
+  theme_minimal()
 ```
-
+###不同性别的评分和反应时
 ```{r}
 fulldata %>% 
-  ggplot(aes(rt, fill = trait)) +
+  ggplot(aes(rating, fill = trait)) +
     geom_histogram() +
-    facet_grid(gender~trait, space = "free") +
-    scale_x_continuous(breaks = c(2000,3000))
+    facet_grid(gender~trait, space = "free")
+    #scale_x_continuous(breaks = c(2000,3000))
+
+#fulldata %>% 
+  #ggplot(aes(x=rt,y=rt,fill=trait))+
+  #geom_point()+
+  #facet_grid(gender~trait,space = "free")
 ```
+
+```{r}
+attractive_data <- fulldata %>% 
+  filter(trait == "attractive")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
