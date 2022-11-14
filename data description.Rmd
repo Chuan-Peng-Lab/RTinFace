@@ -113,6 +113,10 @@ fulldata %>%
   #facet_grid(gender~trait,space = "free")
 ```
 
+```{r}
+attractive_data <- fulldata %>% 
+  filter(trait == "attractive")
+```
 
 
 

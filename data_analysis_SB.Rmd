@@ -1,0 +1,37 @@
+---
+title: "ethnicity"
+author: "Pac"
+date: '2022-11-08'
+output: html_document
+---
+
+```{r}
+library("tidyverse")
+library("bruceR")
+```
+
+```{r}
+fulldata <- read.csv("data/TrainSet.csv")
+```
+
+```{r}
+fulldata <- fulldata %>% 
+  filter(rt<10000 & rt>0)
+```
+
+###性别
+```{r}
+TTEST(fulldata,y = rt,x = "gender",paired = FALSE)
+```
+
+
+
+
+
+
+
+
+
+
+
+
