@@ -7,7 +7,7 @@ output: html_document
 
 ```{r}
 library("tidyverse")
-library("bruceR")
+library("randomForest")
 ```
 
 ```{r}
@@ -19,13 +19,25 @@ fulldata <- fulldata %>%
   filter(rt<10000 & rt>0)
 ```
 
-###性别
+###随机森林
 ```{r}
-TTEST(fulldata,y = rt,x = "gender",paired = FALSE)
+rating_randomforest <- fulldata %>% 
+  select("rating","rt","language","trait","country","sex","age","Race","Gender","Age","ethnicity.y")
+rating_randomforest <- rating_randomforest %>% 
+  na.omit(rating_randomforest)
+n<-length(names(rating_randomforest)) 
+rate=1
+for(i in 1:(n-1)){
+  set.seed(1234)
+  rf_train<-randomForest(as.factor(rating_randomforest$rating)~.,data=rating_randomforest,mtry=i,ntree=1000)
+  rate[i]<-mean(rating_randomforest$err.rate)   #计算基于OOB数据的模型误判率均值
+  print(rf_train)    
+}
+
 ```
-
-
-
+————————————————
+版权声明：本文为CSDN博主「data大柳」的原创文章，遵循CC 4.0 BY-SA版权协议，转载请附上原文出处链接及本声明。
+原文链接：https://blog.csdn.net/yawei_liu1688/article/details/78891050
 
 
 
