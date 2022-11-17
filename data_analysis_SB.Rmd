@@ -8,6 +8,7 @@ output: html_document
 ```{r}
 library("tidyverse")
 library("randomForest")
+library("ranger")
 ```
 
 ```{r}
@@ -19,13 +20,14 @@ fulldata <- fulldata %>%
   filter(rt<10000 & rt>0)
 ```
 
-###随机森林
+###使用randomForest包实现随机森林
 ```{r}
 rating_randomforest <- fulldata %>% 
   select("rating","rt","language","trait","country","sex","Race","Gender","ethnicity.y")
 rating_randomforest <- rating_randomforest %>% 
   na.omit(rating_randomforest)
 
+###这个部分是看mtry取多少合适，但我的电脑跑不动XD
 #n<-length(names(rating_randomforest)) 
 
 #rate=1
@@ -36,22 +38,43 @@ rating_randomforest <- rating_randomforest %>%
 #  rate[i]<-mean(rating_randomforest$err.rate)   #计算基于OOB数据的模型误判率均值
 #  print(rf_train)    
 #}
-
+#blog.csdn.net/yawei_liu1688/article/details/78891050
 ```
 
 ```{r}
 set.seed(1234)
-rf_rating <- randomForest(as.factor(rating_randomforest$rating)~.,data=rating_randomforest,mtry=8,ntree=500,proximity=FALSE)
+rf_rating <- randomForest(as.factor(rating_randomforest$rating)~trait+Race+Gender+ethnicity.y+rt,data=rating_randomforest,mtry=3,ntree=500,importance = TRUE,proximity=FALSE)
 ```
 
 ```{r}
-print(rf_rating)
+print(rf_rating)#查看OOB estimate of  error rate和混淆矩阵等
 importance(rf_rating,type = 2)
 varImpPlot(rf_rating)
 ```
 
 
 
+使用ranger包实现随机森林
+#https://www.coder.work/article/4762286，这篇blog里有谈到为什么使用不同的包做#https://arikuncoro.xyz/blog/data-science/r-python-sql-linux/the-comparison-between-randomforest-and-ranger/ 谈到了为什么运行速度会有差异
+#ranger: A Fast Implementation of Random Forests for High Dimensional Data in C++ and R DOI:10.18637/jss.v077.i01 介绍了Ranger包
+```{r}
+rf_rating_ranger <- ranger(rating~.,num.trees = 500,data = rating_randomforest,mtry = 3,importance = "impurity")
+```
+
+```{r}
+print(rf_rating_ranger)#查看参数
+rf_rating_ranger$variable.importance
+rf_rating_ranger$predictions
+rf_pic <- data.frame(var=names(rating_randomforest)[-1],imps = rf_rating_ranger$variable.importance/max(rf_rating_ranger$variable.importance))#以下是将重要性可视化
+rf_pic %>% 
+  ggplot(aes(imps,x=reorder(var,imps)))+
+  geom_point(size=3,colour="black")+
+  coord_flip()+
+  labs(x="predictor",y="importance")+
+  theme_bw(18)
+
+#下一步找到混淆矩阵
+```
 
 
 
