@@ -1,0 +1,47 @@
+---
+title: "Untitled"
+author: "Pac"
+date: '2022-11-21'
+output: html_document
+---
+
+#libraries
+```{r}
+library("tidyverse")
+library("bruceR")
+```
+
+
+```{r}
+fulldata <- read.csv("data/TrainSet.csv")
+```
+
+```{r}
+fulldata <- fulldata %>% 
+  filter(rt<5000 & rt>0)
+```
+
+
+```{r}
+ethnicity_participants <- fulldata %>% 
+  group_by(ethnicity.x) %>% 
+  summarise(N=n())
+
+chinese <- fulldata %>% 
+  filter(ethnicity.x %in% c("布依族","藏族","哈萨克族","汉","汉族","漢","回","回族","傈僳族","满族","蒙古族","苗","畲族","土家族","壮"))#这里不能使用“==”的判别，
+```
+
+```{r}
+pic_chinese <- chinese %>% 
+  ggplot(aes(x=ethnicity.y,y=rt),fill=y)+
+  geom_boxplot()+
+  theme_minimal()
+pic_chinese
+
+
+```
+
+
+
+
+
