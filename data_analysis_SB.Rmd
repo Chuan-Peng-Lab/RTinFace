@@ -31,6 +31,7 @@ chinese <- fulldata %>%
   filter(ethnicity.x %in% c("布依族","藏族","哈萨克族","汉","汉族","漢","回","回族","傈僳族","满族","蒙古族","苗","畲族","土家族","壮"))#这里不能使用“==”的判别，
 ```
 
+
 ```{r}
 pic_chinese <- chinese %>% 
   ggplot(aes(x=ethnicity.y,y=rt),fill=y)+
@@ -38,8 +39,22 @@ pic_chinese <- chinese %>%
   theme_minimal()
 pic_chinese
 
+#这里可以直接做单因素方差分析吗，应该是重复测量方差分析
+chinese_anova <- chinese %>% 
+  MANOVA( dv = "rt", between = "ethnicity.y")
 
 ```
+
+```{r}
+chinese_within <-chinese %>% 
+  select(c("user_id","rt","ethnicity.y","stim_id")) #%>% 
+  #group_by(user_id) %>% 
+  #summarise(n())
+
+#spread(data = chinese_within, ethnicity.y, rt, convert = TRUE)
+```
+
+
 
 
 
