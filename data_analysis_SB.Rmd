@@ -31,25 +31,43 @@ chinese <- fulldata %>%
   filter(ethnicity.x %in% c("布依族","藏族","哈萨克族","汉","汉族","漢","回","回族","傈僳族","满族","蒙古族","苗","畲族","土家族","壮"))#这里不能使用“==”的判别，
 ```
 
-
+#×这里应该是重复测量方差分析,图也要重新画
 ```{r}
 pic_chinese <- chinese %>% 
   ggplot(aes(x=ethnicity.y,y=rt),fill=y)+
   geom_boxplot()+
   theme_minimal()
-pic_chinese
+remove(pic_chinese)
 
-#这里可以直接做单因素方差分析吗，应该是重复测量方差分析
-chinese_anova <- chinese %>% 
-  MANOVA( dv = "rt", between = "ethnicity.y")
+
+#chinese_anova <- chinese %>% 
+#  MANOVA( dv = "rt", between = "ethnicity.y")
 
 ```
 
+#整理数据框
 ```{r}
-chinese_within <-chinese %>% 
-  select(c("user_id","rt","ethnicity.y","stim_id")) #%>% 
-  #group_by(user_id) %>% 
-  #summarise(n())
+chinese <-chinese %>% 
+  select(c("user_id","rt","ethnicity.y")) %>% 
+  group_by(user_id,ethnicity.y) %>% 
+  summarise(rt=mean(rt)) %>% 
+  ungroup()
+  
+chinese %>% 
+  ggplot(aes(x=ethnicity.y,y=rt))+
+  geom_boxplot()+
+  theme_minimal()
+
+  
+chinese_anova <- chinese %>% 
+  spread(key = ethnicity.y,value = rt,convert = TRUE) %>% 
+  na.omit()
+
+names(chinese_anova)[2:5] <- c("A1","A2","A3","A4")
+
+chinese_anova %>% 
+  MANOVA(dvs = c("A1","A2","A3","A4"),dvs.pattern="A(.)",within = "A")
+
 
 #spread(data = chinese_within, ethnicity.y, rt, convert = TRUE)
 ```
