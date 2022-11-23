@@ -65,6 +65,19 @@ chinese_anova %>%
   MANOVA(dvs = c("A1","A2","A3","A4"),dvs.pattern="A(.)",within = "A")
 ```
 
+```{r}
+ethnicity_participants <- fulldata %>% 
+  group_by(ethnicity.x) %>% 
+  summarise(N=n())
+
+ethnicity_participants %>%
+  filter(N>500) %>% 
+  filter(ethnicity.x!="NA") %>% 
+  ggplot(aes(x = reorder(ethnicity.x,N),y=N,fill=N))+
+           geom_col()+
+           coord_flip()+
+           theme_minimal()
+```
 
 
 #对被试的ethnicity进行分类和赋值
@@ -74,13 +87,16 @@ fulldata <- fulldata %>%
   mutate(ethnicity_p = ethnicity.x)
 
 #对ethnicity进行处理
-fulldata$ethnicity_p[which(fulldata$ethnicity_p %in% c("asian","asian american"))] <- "Asian"
+fulldata$ethnicity_p[which(fulldata$ethnicity_p %in% c("asian","asian american","asian indian","chinese"))] <- "Asian"
 
-fulldata$ethnicity_p[which(fulldata$ethnicity_p %in% c("african american","african-american"))] <- "Black"
+fulldata$ethnicity_p[which(fulldata$ethnicity_p %in% c("african american","african-american","black or african american","black african","black/african american"))] <- "Black"
 
-fulldata$ethnicity_p[which(fulldata$ethnicity_p %in% c("latino","latino"))] <- "Latinx"
+fulldata$ethnicity_p[which(fulldata$ethnicity_p %in% c("latino","latino","hispanic/latino","hispanic/latina","	
+hispanic/latino/latinx","latin","latin-amerikansk","	
+latin american","latina/hispanic","latinamerican","latino/european","	
+latinx"))] <- "Latinx"
 
-fulldata$ethnicity_p[which(fulldata$ethnicity_p %in% c("white","white british"))] <- "White"
+fulldata$ethnicity_p[which(fulldata$ethnicity_p %in% c("white","white british","caucasian","white british","white/caucasian","slovenská","norsk"))] <- "White"
 ```
 
 ```{r}
@@ -96,8 +112,8 @@ ethnicity_analysis <-ethnicity_analysis %>%
   ungroup()
   
 ethnicity_analysis %>% 
-  ggplot(aes(x=ethnicity.y,y=rt))+
-           geom_boxplot(aes(fill=ethnicity_p))+
+  ggplot(aes(x=ethnicity_p,y=rt))+
+           geom_boxplot(aes(fill=ethnicity.y))+
            theme_minimal()
 
 #对数据框进行转置
@@ -109,8 +125,11 @@ ethnicity_anova <- ethnicity_analysis %>%
 #names(chinese_anova)[2:5] <- c("A1","A2","A3","A4")
 
 ethnicity_anova %>% 
-  MANOVA(dvs = c("asian","black","latinx","white"),dvs.pattern="(.)",between="ethnicity_p",within = "face",sph.correction="HF")
-#似乎缺了事后检验，再找找看
+  MANOVA(dvs = c("asian","black","latinx","white"),dvs.pattern="(.)",between="ethnicity_p",within = "face",sph.correction="GG") %>% 
+  EMMEANS("ethnicity_p",by = "face") %>% 
+  EMMEANS("face",by = "ethnicity_p")
+
+length(unique(fulldata$user_id))
 ```
 
 
