@@ -17,16 +17,19 @@ fulldata <- read.csv("data/TrainSet.csv")
 ```
 
 ```{r}
+#按照反应时筛选，并且因为研究民族所以删除民族中的缺失值
 fulldata <- fulldata %>% 
   filter(rt<5000 & rt>0) %>% 
   na.omit(ethnicity.x)
 
+#将所有的ethnicity变为小写，方便后续处理
 fulldata$ethnicity.x <- tolower(fulldata$ethnicity.x)
 
-
+#去除一些无法识别的值
 fulldata <- fulldata %>% 
   filter(!(ethnicity.x %in% c("-","...","50/50 sveits finland","67% skandinavisk","a")))
 
+#统计民族总体情况
 ethnicity_participants <- fulldata %>% 
   group_by(ethnicity.x) %>% 
   summarise(N=n())
@@ -66,9 +69,11 @@ chinese_anova %>%
 
 #对被试的ethnicity进行分类和赋值
 ```{r}
+#生成新的一列，保留原数据
 fulldata <- fulldata %>% 
   mutate(ethnicity_p = ethnicity.x)
 
+#对ethnicity进行处理
 fulldata$ethnicity_p[which(fulldata$ethnicity_p %in% c("asian","asian american"))] <- "Asian"
 
 fulldata$ethnicity_p[which(fulldata$ethnicity_p %in% c("african american","african-american"))] <- "Black"
@@ -79,9 +84,11 @@ fulldata$ethnicity_p[which(fulldata$ethnicity_p %in% c("white","white british"))
 ```
 
 ```{r}
+#选出分类出来的四个ethnicities
 ethnicity_analysis <- fulldata %>% 
   filter(ethnicity_p %in% c("Asian","Black","Latinx","White"))
 
+#计算平均反应时
 ethnicity_analysis <-ethnicity_analysis %>% 
   select(c("user_id","rt","ethnicity_p","ethnicity.y")) %>% 
   group_by(user_id,ethnicity.y,ethnicity_p) %>% 
@@ -90,8 +97,20 @@ ethnicity_analysis <-ethnicity_analysis %>%
   
 ethnicity_analysis %>% 
   ggplot(aes(x=ethnicity.y,y=rt))+
-  geom_boxplot()+
-  theme_minimal()
+           geom_boxplot(aes(fill=ethnicity_p))+
+           theme_minimal()
+
+#对数据框进行转置
+ethnicity_anova <- ethnicity_analysis %>% 
+  spread(key = ethnicity.y,value = rt,convert = TRUE) %>% 
+  na.omit()
+
+
+#names(chinese_anova)[2:5] <- c("A1","A2","A3","A4")
+
+ethnicity_anova %>% 
+  MANOVA(dvs = c("asian","black","latinx","white"),dvs.pattern="(.)",between="ethnicity_p",within = "face",sph.correction="HF")
+#似乎缺了事后检验，再找找看
 ```
 
 
