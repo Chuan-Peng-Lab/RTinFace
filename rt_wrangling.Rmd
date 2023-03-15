@@ -15,9 +15,8 @@ library("purrr")
 
 #读取数据并将加入面孔刺激的信息
 ```{r}
-fulldata <- read.csv("data/psa001_ratings_raw_subset.csv")#这个文件哪里来的？我记不得了
-stim_info = read.csv("data/stim_info.csv")#读取面孔信息
-fulldata <-  full_join (fulldata, stim_info, by = 'stim_id')
+fulldata <- read.csv("data/TrainSet.csv")#这个文件哪里来的？我记不得了
+
 ```
 
 #读取数据
@@ -72,7 +71,7 @@ sampledata %>%
 ```
 
 ```{r}
-write.csv(fulldata,)
+write.csv(fulldata,"./data/rt_tidy.csv")
 ```
 
 #对每个被试的反应时分布进行指数分布的拟合。
@@ -87,13 +86,13 @@ result <- fulldata_grouped %>%
   mutate(fit = map(data, ~ fitdistr(.x$rt, "exponential")), 
          estimate = map_dbl(fit, ~ exp(.$estimate[1])), 
          log_likelihood = map_dbl(fit, "loglik")) %>%
-  select(user_id, estimate, log_likelihood) %>%
+  #select(user_id, estimate, log_likelihood) %>%
   arrange(desc(log_likelihood))
 ```
 
 ```{r}
 a <- result %>% 
-  filter(log_likelihood <= -2170) %>% 
+  filter(log_likelihood <= -300) %>% 
   pull(user_id)
 odddata <- fulldata %>% 
   filter(user_id %in% a)
