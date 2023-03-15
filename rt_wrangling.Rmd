@@ -16,7 +16,7 @@ library("purrr")
 #读取数据并将加入面孔刺激的信息
 ```{r}
 fulldata <- read.csv("data/psa001_ratings_raw_subset.csv")#这个文件哪里来的？我记不得了
-stim_info = read.csv("data/stim_info.csv")
+stim_info = read.csv("data/stim_info.csv")#读取面孔信息
 fulldata <-  full_join (fulldata, stim_info, by = 'stim_id')
 ```
 
