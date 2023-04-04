@@ -1,0 +1,73 @@
+---
+title: "GAMLSS"
+author: "Pac"
+date: "2023-03-28"
+output: html_document
+---
+
+#library packages
+```{r message=FALSE}
+library("tidyverse")
+library("gamlss")
+library(broom.mixed)
+library(kableExtra)#print table
+```
+
+#gamlss control
+```{r}
+con <- gamlss.control(n.cyc = 750)
+
+```
+
+#read data
+```{r}
+rt <- read.csv("./data/rt_tidy.csv")
+```
+
+```{r}
+model_exguasian <- rt %>% 
+  dplyr::select(rt,rating,Gender,Race) #%>% 
+  
+model <- gamlss(formula = rt ~ rating + Gender + Race,
+         sigma.formula = rt ~ rating + Gender + Race,
+         nu.formula = rt ~ rating + Gender + Race,
+         data = na.omit(model_exguasian),
+         family = exGAUS(),
+         control = con
+         )
+```
+```{r}
+model
+```
+
+```{r}
+summary(model)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
