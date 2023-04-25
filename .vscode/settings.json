@@ -1,0 +1,4 @@
+{
+    "CodeGPT.apiKey": "OpenAI",
+    "python.analysis.typeCheckingMode": "basic"
+}
