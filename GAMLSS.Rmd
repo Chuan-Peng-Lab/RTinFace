@@ -8,36 +8,29 @@ output: html_document
 #library packages
 ```{r message=FALSE}
 library("tidyverse")
-library("gamlss")
-library(broom.mixed)
-library(kableExtra)#print table
-```
-
-#gamlss control
-```{r}
-con <- gamlss.control(n.cyc = 750)
-
+library(lme4)
 ```
 
 #read data
 ```{r}
 rt <- read.csv("./data/rt_tidy.csv")
+summary(rt$rt)
 ```
 
 ```{r}
-model_exguasian <- rt %>% 
-  dplyr::select(rt,rating,Gender,Race) #%>% 
-  
-model <- gamlss(formula = rt ~ rating + Gender + Race,
-         sigma.formula = rt ~ rating + Gender + Race,
-         nu.formula = rt ~ rating + Gender + Race,
-         data = na.omit(model_exguasian),
-         family = exGAUS(),
-         control = con
-         )
-```
-```{r}
-model
+model_exgaussian <- rt %>%
+  dplyr::select(rt, rating, trait) %>%
+  mutate(trait = factor(trait))
+
+form <- rating ~ rt + trait
+
+model <- glmer(rating ~ rt + (1 | trait), data = na.omit(model_exgaussian),
+               family = inverse.gaussian,
+               control=glmerControl(optimizer="bobyqa",
+                                     optCtrl=list(maxfun=2e4)))
+
+#model <- gamlss(formula = form,data = model_exgaussian,family = exGAUS(),mu.start = 0.5,control = con)
+
 ```
 
 ```{r}
