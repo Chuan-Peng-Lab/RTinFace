@@ -24,7 +24,6 @@ fulldata <- read.csv("data/TrainSet.csv")#这个文件哪里来的？我记不�
 fulldata <- fulldata[complete.cases(fulldata$rt), ]#去除NA的rt
 fulldata <- fulldata %>% 
   filter(rt>0 & rt<10000) #删去负的和过长的反应时
-summary(fulldata)
 ```
 
 ```{r}
@@ -48,7 +47,7 @@ fulldata %>%
 ```{r}
 #根据正态分布去除末尾的值
 fulldata <- fulldata %>% 
-  filter(rt>245)
+  filter(abs(log_rt-mean(log_rt))<3*sd(log_rt))
 
 fulldata %>% 
   ggplot(aes(x=log_rt))+

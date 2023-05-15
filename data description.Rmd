@@ -10,14 +10,9 @@ library("tidyverse")
 ```
 
 ```{r}
-fulldata <- read.csv("data/TrainSet.csv")
+fulldata <- read.csv("data/rt_tidy.csv")
 ```
 
-```{r}
-fulldata <- fulldata %>% 
-  filter(rt<10000 & rt>0)
-summary(fulldata)
-```
 
 ```{r}
 lan <- fulldata %>% 
@@ -118,6 +113,18 @@ attractive_data <- fulldata %>%
   filter(trait == "attractive")
 ```
 
+```{r warning=FALSE}
+fulldata %>% 
+  mutate(rating = as.numeric(rating)) %>% 
+  mutate(trait = as.factor(trait)) %>% 
+  mutate(country = as.factor(country)) %>% 
+  drop_na(country) %>% 
+  filter(country != "--") %>% 
+  ggplot(aes(x=rating,color = country, fill = country))+
+  facet_wrap(~country)+
+  geom_density()+
+  theme_classic()
+```
 
 
 
