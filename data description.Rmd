@@ -126,6 +126,18 @@ fulldata %>%
   theme_classic()
 ```
 
+#density plot for rating distribution across different traits
+```{r}
+fulldata %>% 
+  mutate(rating = as.numeric(rating)) %>% 
+  mutate(trait = as.factor(trait)) %>% 
+  ggplot(aes(x=rating,color = trait, fill = trait))+
+  facet_wrap(~trait, 2)+
+  geom_bar()+
+  theme_classic()+
+  ggtitle("Figure 1. Density plot for rating distribution across different traits")
+```
+
 
 
 
