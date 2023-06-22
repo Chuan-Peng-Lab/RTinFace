@@ -14,6 +14,13 @@ fulldata <- read.csv("data/rt_tidy.csv")
 regions <- read.csv("data/regions.csv")
 ```
 
+```{r}
+data_region <- fulldata %>% 
+  mutate(lab  = substr(lab,1,nchar(lab)-4)) %>% 
+  mutate(country = lab) %>% 
+  left_join(regions, by = "country")
+```
+
 
 ```{r}
 lan <- fulldata %>% 
@@ -157,8 +164,21 @@ region
 ```
 
 
+```{r}
+data_region %>% 
+  ggplot(aes(x = ))
+```
 
-
+```{r}
+fulldata %>% 
+  mutate(rating = as.numeric(rating)) %>% 
+  mutate(trait = as.factor(trait)) %>% 
+  ggplot(aes(x=rt,color = trait, fill = trait))+
+  facet_wrap(~trait, 2)+
+  geom_density()+
+  theme_classic()+
+  ggtitle("Figure 2. Density plot for reaction time distribution across different traits")
+```
 
 
 
