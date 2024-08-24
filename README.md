@@ -40,7 +40,7 @@ We are using an open dataset from PSA001. Participants (N = 11,481) were drawn f
 ## Contact
 
 - **Lead Researcher:** Prof. Hu Chuan-Peng ([hcp4715@gmail.com])
-- **Data Analyst:** Nan Wang ([analyst.nanwanglin@gmail.com])
+- **Data Analyst:** Nan Wang ([nanwanglin@gmail.com])
 
 ## Contributors
 
