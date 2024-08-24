@@ -1,0 +1,116 @@
+---
+title: "RT_wrangling"
+author: "Pac"
+date: "2023-03-06"
+output: html_document
+---
+
+```{r}
+library("MASS")
+library("tidyverse")
+library("fitdistrplus")
+library("nortest")
+library("purrr")
+```
+
+#读取数据并将加入面孔刺激的信息
+```{r}
+fulldata <- read.csv("data/TrainSet.csv")#这个文件哪里来的？我记不得了
+
+```
+
+#读取数据
+```{r}
+fulldata <- fulldata[complete.cases(fulldata$rt), ]#去除NA的rt
+fulldata <- fulldata %>% 
+  filter(rt>0 & rt<10000) #删去负的和过长的反应时
+```
+
+```{r}
+fulldata %>% 
+  ggplot(aes(x=rt))+
+  geom_histogram() +
+  xlab("Reaction Time") +
+  theme_bw()
+```
+
+```{r}
+fulldata$log_rt <- log(fulldata$rt)
+fulldata %>% 
+  ggplot(aes(x=log_rt))+
+  geom_histogram() +
+  xlab("Reaction Time") +
+  xlim(2.5,12.5)+
+  theme_bw()
+```
+
+```{r}
+#根据正态分布去除末尾的值
+fulldata <- fulldata %>% 
+  filter(abs(log_rt-mean(log_rt))<3*sd(log_rt))
+
+fulldata %>% 
+  ggplot(aes(x=log_rt))+
+  geom_histogram() +
+  xlab("Reaction Time") +
+  xlim(2.5,12.5)+
+  theme_bw()
+```
+
+```{r}
+# 从数据框中抽取50个样本
+sampled_data <- sample(fulldata$user_id,50)
+
+sampledata <- fulldata %>% 
+  filter(user_id %in% sampled_data)
+sampledata %>% 
+  ggplot(aes(x=rt))+
+  geom_histogram()+
+  facet_wrap("~user_id")
+```
+
+```{r}
+write.csv(fulldata,"./data/rt_tidy.csv")
+```
+
+#对每个被试的反应时分布进行指数分布的拟合。
+```{r}
+# 将数据框按照被试编号进行分组，并将每个被试的反应时数据放在单独的数据框中
+fulldata_grouped <- fulldata %>% 
+  group_by(user_id) %>% 
+  nest()
+
+# 对每个数据框进行指数分布拟合，并将拟合参数添加到数据框中
+result <- fulldata_grouped %>%
+  mutate(fit = map(data, ~ fitdistr(.x$rt, "exponential")), 
+         estimate = map_dbl(fit, ~ exp(.$estimate[1])), 
+         log_likelihood = map_dbl(fit, "loglik")) %>%
+  #select(user_id, estimate, log_likelihood) %>%
+  arrange(desc(log_likelihood))
+```
+
+```{r}
+a <- result %>% 
+  filter(log_likelihood <= -300) %>% 
+  pull(user_id)
+odddata <- fulldata %>% 
+  filter(user_id %in% a)
+
+odddata %>% 
+  ggplot(aes(x=rt))+
+  geom_histogram()+
+  facet_wrap("~user_id")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+

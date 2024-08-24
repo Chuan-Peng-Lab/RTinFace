@@ -1,0 +1,192 @@
+---
+title: "Untitled"
+author: "Pac"
+date: '2022-11-04'
+output: html_document
+---
+
+```{r}
+library("tidyverse")
+```
+
+```{r}
+fulldata <- read.csv("data/rt_tidy.csv")
+regions <- read.csv("data/regions.csv")
+```
+
+```{r}
+data_region <- fulldata %>% 
+  mutate(lab  = substr(lab,1,nchar(lab)-4)) %>% 
+  mutate(country = lab) %>% 
+  left_join(regions, by = "country")
+```
+
+
+```{r}
+lan <- fulldata %>% 
+  group_by(language) %>% 
+  summarise(N=n())
+#view(lan)
+lan %>%
+  ggplot(aes(x=reorder(language,N),y=N,fill=N))+
+  geom_col()+
+  coord_flip()+
+  theme_minimal()
+```
+```{r}
+traits <- fulldata %>% 
+  group_by(trait) %>% 
+  summarise(N=n())
+
+traits %>% 
+  ggplot(aes(x=reorder(trait,N),y=N,fill=N))+
+  geom_col()+
+  coord_flip()+
+  theme_minimal()
+```
+
+```{r}
+country <- fulldata %>% 
+  group_by(country) %>% 
+  summarise(N=n())
+
+country %>% 
+  filter(country != "NA") %>% 
+  filter(N > 200) %>%
+  ggplot(aes(x = reorder(country,N),y=N,fill=N))+
+           geom_col()+
+           coord_flip()+
+           theme_minimal()
+           
+```
+
+```{r}
+ethnicity_participants <- fulldata %>% 
+  group_by(ethnicity.x) %>% 
+  summarise(N=n())
+
+ethnicity_participants %>%
+  filter(N>500) %>% 
+  filter(ethnicity.x!="NA") %>% 
+  ggplot(aes(x = reorder(ethnicity.x,N),y=N,fill=N))+
+           geom_col()+
+           coord_flip()+
+           theme_minimal()
+```
+###面孔信息
+```{r}
+race <- fulldata %>% 
+  group_by(Race) %>% 
+  summarise(N=n())
+race %>% 
+  ggplot(aes(x=reorder(Race,N),y=N,fill=N))+
+  geom_col()+
+  coord_flip()+
+  theme_minimal()
+
+ethnicity_face <- fulldata %>% 
+  group_by(ethnicity.y) %>% 
+  summarise(N=n())
+ethnicity_face %>% 
+  ggplot(aes(x=reorder(ethnicity.y,N),y=N,fill=N))+
+  geom_col()+
+  coord_flip()+
+  theme_minimal()
+
+gender_face <- fulldata %>% 
+  group_by(gender) %>% 
+  summarise(N=n())
+gender_face %>% 
+  ggplot(aes(x=reorder(gender,N),y=N,fill=N))+
+  geom_col()+
+  coord_flip()+
+  theme_minimal()
+```
+###不同性别的评分和反应时
+```{r}
+fulldata %>% 
+  ggplot(aes(rating, fill = trait)) +
+    geom_histogram() +
+    facet_grid(gender~trait, space = "free")
+    #scale_x_continuous(breaks = c(2000,3000))
+
+#fulldata %>% 
+  #ggplot(aes(x=rt,y=rt,fill=trait))+
+  #geom_point()+
+  #facet_grid(gender~trait,space = "free")
+```
+
+```{r}
+attractive_data <- fulldata %>% 
+  filter(trait == "attractive")
+```
+
+```{r warning=FALSE}
+fulldata %>% 
+  mutate(rating = as.numeric(rating)) %>% 
+  mutate(trait = as.factor(trait)) %>% 
+  mutate(country = as.factor(country)) %>% 
+  drop_na(country) %>% 
+  filter(country != "--") %>% 
+  ggplot(aes(x=rating,color = country, fill = country))+
+  facet_wrap(~country)+
+  geom_density()+
+  theme_classic()
+```
+
+#density plot for rating distribution across different traits
+```{r}
+fulldata %>% 
+  mutate(rating = as.numeric(rating)) %>% 
+  mutate(trait = as.factor(trait)) %>% 
+  ggplot(aes(x=rating,color = trait, fill = trait))+
+  facet_wrap(~trait, 2)+
+  geom_bar()+
+  theme_classic()+
+  ggtitle("Figure 2. Density plot for rating distribution across different traits")
+```
+
+```{r}
+region <- fulldata %>% 
+  select(lab) %>%
+  mutate(lab  = substr(lab,1,nchar(lab)-4)) %>% 
+  mutate(country = lab) %>% 
+  group_by(country) %>% 
+  count(name = "number") %>% 
+  ungroup() %>% 
+  left_join(regions, by = "country") %>% 
+  ggplot(., aes(x = number, y = region, fill = country)) +
+  geom_bar(stat = "identity", position = "stack") + 
+  labs(title = "Fig.1 Participant Demographics", x = "Count", y = "Region") +
+  theme_minimal()
+region
+
+```
+
+
+```{r}
+data_region %>% 
+  ggplot(aes(x = ))
+```
+
+```{r}
+fulldata %>% 
+  mutate(rating = as.numeric(rating)) %>% 
+  mutate(trait = as.factor(trait)) %>% 
+  ggplot(aes(x=rt,color = trait, fill = trait))+
+  facet_wrap(~trait, 2)+
+  geom_density()+
+  theme_classic()+
+  ggtitle("Figure 2. Density plot for reaction time distribution across different traits")
+```
+
+
+
+
+
+
+
+
+
+
+

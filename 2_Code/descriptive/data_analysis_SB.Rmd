@@ -1,0 +1,136 @@
+---
+title: "Untitled"
+author: "Pac"
+date: '2022-11-21'
+output: html_document
+---
+
+#libraries
+```{r}
+library("tidyverse")
+library("bruceR")
+```
+
+
+```{r}
+fulldata <- read.csv("data/TrainSet.csv")
+```
+
+```{r}
+#按照反应时筛选，并且因为研究民族所以删除民族中的缺失值
+fulldata <- fulldata %>% 
+  filter(rt<5000 & rt>0) %>% 
+  na.omit(ethnicity.x)
+
+#将所有的ethnicity变为小写，方便后续处理
+fulldata$ethnicity.x <- tolower(fulldata$ethnicity.x)
+
+#去除一些无法识别的值
+fulldata <- fulldata %>% 
+  filter(!(ethnicity.x %in% c("-","...","50/50 sveits finland","67% skandinavisk","a")))
+
+#统计民族总体情况
+ethnicity_participants <- fulldata %>% 
+  group_by(ethnicity.x) %>% 
+  summarise(N=n())
+
+```
+
+#拿中国被试试了试
+```{r}
+chinese <- fulldata %>% 
+  filter(ethnicity.x %in% c("布依族","藏族","哈萨克族","汉","汉族","漢","回","回族","傈僳族","满族","蒙古族","苗","畲族","土家族","壮"))#这里不能使用“==”的判别，
+```
+#整理数据框
+```{r}
+chinese <-chinese %>% 
+  select(c("user_id","rt","ethnicity.y")) %>% 
+  group_by(user_id,ethnicity.y) %>% 
+  summarise(rt=mean(rt)) %>% 
+  ungroup()
+  
+chinese %>% 
+  ggplot(aes(x=ethnicity.y,y=rt))+
+  geom_boxplot()+
+  theme_minimal()
+
+  
+chinese_anova <- chinese %>% 
+  spread(key = ethnicity.y,value = rt,convert = TRUE) %>% 
+  na.omit()
+
+names(chinese_anova)[2:5] <- c("A1","A2","A3","A4")
+
+chinese_anova %>% 
+  MANOVA(dvs = c("A1","A2","A3","A4"),dvs.pattern="A(.)",within = "A")
+```
+
+```{r}
+ethnicity_participants <- fulldata %>% 
+  group_by(ethnicity.x) %>% 
+  summarise(N=n())
+
+ethnicity_participants %>%
+  filter(N>500) %>% 
+  filter(ethnicity.x!="NA") %>% 
+  ggplot(aes(x = reorder(ethnicity.x,N),y=N,fill=N))+
+           geom_col()+
+           coord_flip()+
+           theme_minimal()
+```
+
+
+#对被试的ethnicity进行分类和赋值
+```{r}
+#生成新的一列，保留原数据
+fulldata <- fulldata %>% 
+  mutate(ethnicity_p = ethnicity.x)
+
+#对ethnicity进行处理
+fulldata$ethnicity_p[which(fulldata$ethnicity_p %in% c("asian","asian american","asian indian","chinese"))] <- "Asian"
+
+fulldata$ethnicity_p[which(fulldata$ethnicity_p %in% c("african american","african-american","black or african american","black african","black/african american"))] <- "Black"
+
+fulldata$ethnicity_p[which(fulldata$ethnicity_p %in% c("latino","latino","hispanic/latino","hispanic/latina","	
+hispanic/latino/latinx","latin","latin-amerikansk","	
+latin american","latina/hispanic","latinamerican","latino/european","	
+latinx"))] <- "Latinx"
+
+fulldata$ethnicity_p[which(fulldata$ethnicity_p %in% c("white","white british","caucasian","white british","white/caucasian","slovenská","norsk"))] <- "White"
+```
+
+```{r}
+#选出分类出来的四个ethnicities
+ethnicity_analysis <- fulldata %>% 
+  filter(ethnicity_p %in% c("Asian","Black","Latinx","White"))
+
+#计算平均反应时
+ethnicity_analysis <-ethnicity_analysis %>% 
+  select(c("user_id","rt","ethnicity_p","ethnicity.y")) %>% 
+  group_by(user_id,ethnicity.y,ethnicity_p) %>% 
+  summarise(rt=mean(rt)) %>% 
+  ungroup()
+  
+ethnicity_analysis %>% 
+  ggplot(aes(x=ethnicity_p,y=rt))+
+           geom_boxplot(aes(fill=ethnicity.y))+
+           theme_minimal()
+
+#对数据框进行转置
+ethnicity_anova <- ethnicity_analysis %>% 
+  spread(key = ethnicity.y,value = rt,convert = TRUE) %>% 
+  na.omit()
+
+
+#names(chinese_anova)[2:5] <- c("A1","A2","A3","A4")
+
+ethnicity_anova %>% 
+  MANOVA(dvs = c("asian","black","latinx","white"),dvs.pattern="(.)",between="ethnicity_p",within = "face",sph.correction="GG") %>% 
+  EMMEANS("ethnicity_p",by = "face") %>% 
+  EMMEANS("face",by = "ethnicity_p")
+
+length(unique(fulldata$user_id))
+```
+
+
+
