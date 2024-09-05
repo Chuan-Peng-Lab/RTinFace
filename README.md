@@ -47,6 +47,6 @@ Data sources: [PSA001](https://doi.org/10.1038/s41562-020-01007-2). We downloade
 ## Contributors
 
 - **[2022.12-] [Prof. Hu Chuan-peng]:** Project design, data analysis guidance.
-- **[2022.12-] [Wang Nan]:** Data processing,code development and statistical analysis.
-- **[2022.12-] [Bai Songshi]:** Code development, data visualization, and proofreading.
+- **[2022.12-2024.08] [Wang Nan]:** Data processing,code development and statistical analysis.
+- **[2022.12-2024.08] [Bai Songshi]:** Code development, data visualization, and proofreading.
 
