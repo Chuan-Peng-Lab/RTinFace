@@ -1,0 +1,182 @@
+---
+title: "Source to Raw PSA001"
+author: "Lisa"
+output: html_document
+---
+
+```{r, include = FALSE}
+library(RMySQL)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(stringr)
+
+con <- dbConnect(
+  drv = RMySQL::MySQL(),
+  dbname = "psa",
+  host = '127.0.0.1',
+  username = 'root',
+  password = 'm0nKEY',
+  port = 3306
+)
+```
+
+
+```{r, message=FALSE}
+
+# to limit to only data associated with PSA001:
+#   LEFT JOIN project ON project.id = project_id WHERE psa_id = 1
+
+session <- dbGetQuery(con, "SELECT session.id AS session_id,
+                      project_id, user_id, res_name AS proj_name, 
+                      user.status AS user_status
+                      FROM session 
+                      LEFT JOIN user USING (user_id)
+                      LEFT JOIN project ON project.id = project_id 
+                      WHERE psa_id = 1")
+
+# omit 'lab' and 'uni' questions because of potential for personal data
+quest <- dbGetQuery(con, "SELECT quest_data.*, 
+                    question.name AS q_name 
+                    FROM quest_data
+                    LEFT JOIN question ON question_id = question.id
+                    LEFT JOIN session ON session.id = session_id
+                    LEFT JOIN project ON project.id = project_id
+                    WHERE psa_id = 1
+                    HAVING q_name != 'uni'")
+
+exp <- dbGetQuery(con, "SELECT exp_id, exp_data.user_id, session_id, trial_n, 
+                    trial.name as trial_name,
+                    dv, rt, `order`, exp_data.dt, 
+                    exp.res_name AS exp_name
+                    FROM exp_data
+                    LEFT JOIN trial USING (exp_id, trial_n)
+                    LEFT JOIN exp ON exp.id = exp_id
+                    LEFT JOIN session ON session.id = session_id
+                    LEFT JOIN project ON project.id = project_id
+                    WHERE psa_id = 1")
+
+dbDisconnect(con)
+```
+
+Figure out exp collected on test links
+
+```{r}
+labq <-  session %>%
+  full_join(filter(quest, q_name == "lab")) %>%
+  filter(user_status %in% c("guest", "registered")) %>%
+  mutate(lab = toupper(dv) %>% 
+           trimws() %>%
+           str_replace_all("(\\W|_)", ""),
+         letters = str_replace_all(lab, "[0-9]", ""),
+         numbers = str_replace_all(lab, "[A-Z]", "") %>%
+           as.integer(),
+         fixlab = sprintf("%s_%03.f", letters, numbers))
+
+distinct_id <- labq %>%
+  filter(!str_detect(lab, "TEST"), 
+         lab != "") %>%
+  group_by(proj_name, fixlab) %>%
+  summarise(n = n(),
+            mintime = min(starttime), 
+            maxtime = max(starttime)) %>%
+  arrange(proj_name, desc(n))
+
+
+collected_on_test <- distinct_id %>%
+  filter(str_detect(proj_name, "test")) %>%
+  arrange(proj_name, fixlab, desc(n))
+
+cot_priority <- collected_on_test %>%
+  filter(n > 9) %>%
+  arrange(fixlab)
+
+write_csv(collected_on_test, "collected_on_test.csv")
+
+
+transfer <- labq %>%
+  mutate(change_to  = case_when(
+    fixlab == "BEL_001" & 
+      proj_name == "PSA1_FR-BE_test" ~ "PSA1_FR-BE_BEL_001",
+    fixlab == "USA_115" & 
+      proj_name == "PSA1_ENG_test" ~ "PSA1_ENG_USA_115",
+    fixlab == "AUS_011" & 
+      proj_name == "PSA1_ENG_test" ~ "PSA1_ENG_AUS_011",
+    fixlab == "FRA_003" & 
+      proj_name == "PSA1_FRE_test" ~ "PSA1_FRE_FRA_003",
+    fixlab == "NOR_001" & 
+      proj_name == "PSA1_ENG_test" ~ "PSA1_ENG_NOR_001",
+    fixlab == "NOR_001" & 
+      proj_name == "PSA1_NOR_test" ~ "PSA1_NOR_NOR_001",
+    fixlab == "_017" & 
+      proj_name == "PSA1_GER_test" ~ "PSA1_GER_GER_017",
+    fixlab == "CHN_001" & 
+      proj_name == "PSA1_ZH-S_test" ~ "PSA1_ZH-S_CHN_001",
+    fixlab == "PSI_003" & 
+      proj_name == "PSA1_ITA_test" ~ "PSA1_ITA_ITA_003",
+    fixlab == "CHI_003" & 
+      proj_name == "PSA1_SPA_test" ~ "PSA1_ENG_CHI_003",
+    fixlab == "CHI_005" & 
+      proj_name == "PSA1_SPA_test" ~ "PSA1_ENG_CHI_005",
+    fixlab == "MAS_001" & 
+      proj_name == "PSA1_ENG_test" ~ "PSA1_ENG_MAS_001",
+    fixlab == "ITA_001" & 
+      proj_name == "PSA1_ITA_test" ~ "PSA1_ITA_ITA_001",
+    TRUE ~ NA_character_)
+  ) %>%
+  select(session_id, change_to) %>%
+  filter(!is.na(change_to))
+```
+
+Figure out test collected on exp links
+
+```{r}
+
+test_to_remove <- filter(quest, q_name %in% c("lab", "ethnicity")) %>%
+  mutate(dv = toupper(dv)) %>%
+  filter(str_detect(dv, "TEST")) %>%
+  select(session_id)
+
+```
+
+
+Filter out test cases and fix proj_name for sessions collected on the test links
+
+```{r}
+
+session_flt <- session %>%
+  left_join(transfer, by = "session_id") %>%
+  mutate(proj_name = ifelse(!is.na(change_to), change_to, proj_name)) %>%
+  select(-change_to) %>%
+  anti_join(test_to_remove, by = "session_id") %>%
+  distinct(.keep_all = TRUE)
+
+quest_flt <- quest %>%
+  anti_join(test_to_remove, by = "session_id") %>%
+  filter(q_name != "lab") %>%
+  distinct(.keep_all = TRUE)
+
+exp_flt <- exp %>%
+  anti_join(test_to_remove, by = "session_id") %>%
+  distinct(.keep_all = TRUE)
+```
+
+
+
+
+```{r}
+write_csv(session_flt, "data/psa001_session.csv")
+write_csv(quest_flt, "data/psa001_quest_data.csv")
+write_csv(exp_flt, "data/psa001_exp_data.csv")
+```
+
+
+
+
+
+
+
+
+
+
+

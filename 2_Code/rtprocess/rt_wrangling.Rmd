@@ -101,16 +101,3 @@ odddata %>%
   geom_histogram()+
   facet_wrap("~user_id")
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-

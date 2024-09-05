@@ -21,3 +21,16 @@
 */*/.Rhistory
 */*/*/.Rhistory
 */*/*/*/.Rhistory
+
+# ignore zip files
+*.zip
+*/*.zip
+*/*/*.zip
+*/*/*/*.zip
+
+# ignore big file
+1_data/FullData/data/psa001_ratings_raw.csv
+1_data/FullData/data/psa001_exp_data.csv
+1_data/FullData/data/psa001_ind.csv
+1_data/ExploratoryData/data/psa001_exp_data_subset.csv
+1_data/ExploratoryData/data/psa001_ratings_raw_subset.csv 

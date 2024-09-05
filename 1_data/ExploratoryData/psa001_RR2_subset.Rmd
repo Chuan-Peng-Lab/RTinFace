@@ -1,0 +1,895 @@
+---
+title: 'PSA001: Stage 2 RR SUBSET Analyses'
+output:
+  html_document:
+    code_folding: hide
+    number_sections: true
+    toc: yes
+    toc_depth: 5
+---
+
+This file provides code to analyse a subset of a random 1/3 of participants for each lab.
+
+# Load Data
+
+```{r libraries, messages = FALSE}
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(psych) # for SPSS-style PCA
+pacman::p_load(paran) # for parallel analyses
+pacman::p_load(GPArotation) # for robustness checks
+pacman::p_load(kableExtra) # for nice tables
+pacman::p_load(tidyverse) # for data cleaning
+
+# create directory for saving figures
+if (!dir.exists("figures")) { dir.create("figures") }
+
+options(knitr.kable.NA = '')
+knitr::opts_chunk$set(echo = TRUE, 
+                      warning = FALSE, 
+                      message = FALSE)
+
+R.version.string
+
+set.seed(8675309)
+```
+
+## Simulate Study Data (for Stage 1 RR)
+
+See https://osf.io/87rbg/ for Stage 1 RR code. The code below is modified from the original to account for a different raw data structure and to add additional tables and graphs. All analysis code is identical.
+
+## Load Study Data (SUBSET)
+
+Subset the data (this won't run unless you have the original full data).
+
+```{r subset-data, eval = FALSE}
+
+session <- read_csv("data/psa001_session_subset.csv")
+dat_quest <- read_csv("data/psa001_quest_data_subset.csv")
+dat_exp <- read_csv("data/psa001_exp_data_subset.csv")
+
+session_subset <- session %>%
+  filter(user_status %in% c("guest", "registered")) %>%
+  group_by(proj_name) %>%
+  sample_frac(1/3) %>%
+  ungroup() %>%
+  pull(session_id)
+
+session %>%
+  filter(session_id %in% session_subset) %>%
+  write_csv("data/psa001_session_subset.csv")
+
+dat_exp %>%
+  filter(session_id %in% session_subset) %>%
+  write_csv("data/psa001_exp_data_subset.csv")
+
+dat_quest %>%
+  filter(session_id %in% session_subset) %>%
+  write_csv("data/psa001_quest_data_subset.csv")
+```
+
+Load study data and demographic questionnaires from the data folder.
+
+```{r data-load}
+session <- read_csv("data/psa001_session_subset.csv")
+dat_quest <- read_csv("data/psa001_quest_data_subset.csv")
+dat_exp <- read_csv("data/psa001_exp_data_subset.csv")
+
+# reshape questionnaire data to make wide
+quest <- dat_quest %>%
+  dplyr::select(session_id, endtime, user_id, q_name, dv) %>%
+  group_by(session_id, user_id, q_name) %>%
+  arrange(endtime) %>%
+  filter(row_number() == 1) %>%
+  ungroup() %>%
+  spread(q_name, dv, convert = TRUE)
+```
+
+
+Join experiment and questionnaire data
+
+```{r exp-quest-join}
+
+ratings_raw <-  dat_exp %>%
+  left_join(session, by = c("user_id", "session_id")) %>%
+  filter(user_status %in% c("guest", "registered")) %>%
+  separate(exp_name, c("psa", "language", "trait", "block"), 
+           sep = "_") %>%
+  dplyr::select(-psa) %>%
+  separate(proj_name, c("psa", "lang", "lab1", "lab2"),
+           sep = "_", fill = "right") %>%
+  filter(lab1 != "test") %>%
+  unite(lab_id, c("lab1", "lab2")) %>%
+  dplyr::select(-psa, lang) %>%
+  left_join(quest, by = c("session_id", "user_id")) %>%
+  dplyr::select(language, user_id = session_id, trait, 
+         stim_id = trial_name, 
+         order, rt, rating = dv,
+         country, sex, age, ethnicity, lab = lab_id, block) %>%
+  mutate(trait = recode(trait,
+                        "Res" = "responsible",
+                        "Wei" = "weird",
+                        "Old" = "old",
+                        "Tru" = "trustworthy",
+                        "Dom" = "dominant",
+                        "Emo" = "emostable",
+                        "Agg" = "aggressive",
+                        "Car" = "caring",
+                        "Int" = "intelligent",
+                        "Unh" = "unhappy",
+                        "Soc" = "sociable",
+                        "Mea" = "mean",
+                        "Con" = "confident",
+                        "Att" = "attractive"
+  )) 
+  
+# write_csv(ratings_raw, "data/psa001_ratings_raw_subset.csv")
+
+```
+
+## Load Auxillary Data
+
+Data on regions and stimuli.
+
+### Load Region Data
+
+```{r load-region}
+regions <- read_csv("data/regions.csv")
+```
+
+### Load Stimulus Info
+
+```{r load-stim-info}
+stim_info <- read_csv("data/psa001_cfd_faces.csv") %>%
+  mutate(ethnicity = recode(Race, "A" = "asian", "B" = "black", "L" = "latinx", "W" = "white"),
+         gender = recode(Gender, "M" = "male", "F" = "female")
+  )
+
+stim_info %>%
+  group_by(ethnicity, gender) %>%
+  summarise(
+    n = n(),
+    mean_age = round(mean(Age), 2),
+    sd_age = round(sd(Age), 2)
+  ) %>%
+  knitr::kable("html") %>%
+  kable_styling("striped")
+
+stim_n_male <- sum(stim_info$gender == "male")
+stim_n_female <- sum(stim_info$gender == "female")
+mean_age <- mean(stim_info$Age) %>% round(2)
+sd_age <- sd(stim_info$Age) %>% round(2)
+min_age <- min(stim_info$Age)
+max_age <- max(stim_info$Age)
+```
+
+Stimuli in our study will be an open-access, full-color, face image set consisting of `r stim_n_male` men and `r stim_n_female` women (mean age=`r mean_age` years, SD=`r sd_age` years, range=`r min_age` to `r max_age` years), taken under standardized photographic conditions (Ma et al., 2015). 
+
+### Load O&T 2008 Data
+
+```{r otdata}
+# read original OT data and get into same format as data_agg will be
+
+traits <- ratings_raw %>%
+  filter(trait != "old", !is.na(trait)) %>%
+  arrange(trait) %>%
+  pull(trait) %>%
+  unique()
+  
+ot_data <- readxl::read_excel("data/Karolinska_14trait_judgmentswithlabels.xls") %>%
+  mutate(region = "(Oosterhof & Todorov, 2008)") %>%
+  rename(stim_id = `Todorov Label`,
+         emostable = `emotionally stable`) %>%
+  dplyr::select(region, stim_id, traits)
+```
+
+
+## Data Processing
+
+### Join Data
+
+```{r join-data}
+
+ratings <- ratings_raw %>%
+  rename(qcountry = country) %>%
+  separate(lab, c("country", "lab")) %>%
+  left_join(regions, by = "country") %>%
+  filter(trait != "old")
+  
+```
+
+### Graph distributions for trait by region
+```{r plot-styles}
+# plot styles
+bgcolor <- "white"
+textcolor <- "black"
+PSA_theme <- theme(
+    plot.background = element_rect(fill = bgcolor, color = NA),
+    panel.background = element_rect(fill = NA, color = "grey"),
+    legend.background = element_rect(fill = NA),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    text = element_text(color = textcolor, size=15),
+    axis.text = element_text(color = textcolor, size=10),
+    strip.text.y = element_text(angle = 0, hjust = 0)
+  )
+```
+
+```{r trait-by-region-plot, fig.width=15, fig.height=6}
+
+ggplot(ratings, aes(rating, fill = trait)) +
+  geom_histogram(binwidth = 1, color = "grey", show.legend = F) +
+  facet_grid(region~trait, space = "free") +
+  scale_x_continuous(breaks = 1:9) +
+  PSA_theme
+```
+
+## Data checks
+
+```{r data-checks}
+part <- ratings %>%
+  group_by(user_id, sex, age, country, language, trait, region, lab) %>%
+  summarise(trials = n(),
+            stim_n = n_distinct(stim_id)) %>%
+  ungroup()
+```
+
+### How many participants completed at least one rating for each of 120 stimuli
+
+```{r rated-1-stim}
+part %>% 
+  mutate(n120 = ifelse(stim_n == 120, "rated all 120", "rated < 120")) %>%
+  count(region, n120) %>%
+  spread(n120, n) %>%
+  knitr::kable("html") %>%
+  kable_styling("striped")
+```
+
+### Participants who did not complete exactly 240 trials
+
+```{r rated-lt-240}
+part %>% 
+  mutate(n240 = case_when(
+    trials == 240 ~ "rated 240", 
+    trials > 240 ~ "rated > 240",
+    trials < 120 ~ "rated < 120",
+    trials < 240 ~ "rated 120-239"
+  )) %>%
+  count(region, n240) %>%
+  spread(n240, n, fill = 0) %>%
+  knitr::kable("html") %>%
+  kable_styling("striped")
+```
+
+### Participants with low-variance responses in block 1
+
+```{r low-variance}
+
+identical_rating_threshold <- 0.75 * 120 # use this for registered analyses
+
+inv_participants <- ratings %>%
+  filter(block == 1) %>%
+  count(user_id, region, trait, rating) %>%
+  group_by(user_id, region, trait) %>%
+  filter(n == max(n)) %>% # find most common rating for each P
+  ungroup() %>%
+  filter(n >= identical_rating_threshold) # dplyr::select Ps who gave the same rating to >= 75% of stimuli
+
+inv <- inv_participants %>%
+  count(region, trait) %>%
+  spread(region, n, fill = 0) %>%
+  mutate(TOTAL = rowSums(dplyr::select_if(., is.numeric), na.rm = T))
+
+inv_total <-  group_by(inv) %>% 
+  summarise_if(is.numeric, sum, na.rm = T) %>%
+  mutate(trait = "TOTAL")
+ 
+bind_rows(inv,inv_total) %>%
+  knitr::kable("html") %>%
+  kable_styling("striped")
+```
+
+
+### Participants with no region
+
+```{r no-region}
+part %>% 
+  filter(is.na(region)) %>%
+  dplyr::select(user_id, country, lab)
+```
+
+
+### Remove excluded data and average ratings
+
+```{r data-exclusions}
+data <- ratings %>%
+  group_by(user_id, trait) %>%
+  filter(
+    # did not complete 1+ ratings for each of 120 stimuli
+    dplyr::n_distinct(stim_id) == 120,      
+    !is.na(region)   # did not specify region (none expected)
+  ) %>%
+  anti_join(inv_participants, by = "user_id") %>% # exclude Ps with low variance
+  ungroup() %>%
+  group_by(user_id, age, sex, ethnicity, language, lab, country, region, trait, stim_id) %>%
+  summarise(rating = mean(rating)) %>% # average ratings across 2 
+  ungroup()
+
+write_csv(data, "data/psa001_ind_subset.csv")
+
+```
+
+
+
+## Participant Demographics
+
+```{r demog-language}
+data %>%
+  group_by(user_id, language) %>%
+  summarise() %>%
+  ungroup() %>%
+  group_by(language) %>%
+  summarise(n = n()) %>%
+  knitr::kable("html") %>%
+  kable_styling("striped")
+```
+
+```{r demog-region}
+by_region <- data %>%
+  group_by(user_id, region) %>%
+  summarise() %>%
+  ungroup() %>%
+  group_by(region) %>%
+  summarise(n = n()) %>%
+  add_row(region = "TOTAL", n = n_distinct(data$user_id)) %>%
+  knitr::kable("html") %>%
+  kable_styling("striped")
+
+save_kable(by_region, "figures/n_by_region.html")
+           
+by_region
+```
+
+### Age and sex distribution per region
+```{r age-sex-plot, fig.width=12, fig.height=10}
+data %>%
+  group_by(user_id, sex, age, region) %>%
+  summarise() %>%
+  ungroup() %>%
+  group_by(region) %>%
+  mutate(n = n()) %>%
+  ungroup() %>%
+  ggplot(aes(as.numeric(age), fill = sex)) +
+  geom_histogram(binwidth = 5, color = "grey") +
+  geom_text(aes(x=0, y=5, label = paste0("n=",n)), color = "black") +
+  labs(title="", y="", x="Participant age in 5-year bins") +
+  facet_grid(region~., scales="free_y") +
+  PSA_theme
+```
+
+
+### Participants per trait per region
+
+```{r n-trait-region-plot, fig.width=15, fig.height=10.5}
+data %>%
+  group_by(trait, region) %>%
+  summarise(n = n_distinct(user_id)) %>%
+  ggplot(aes(trait, n)) +
+  geom_col(aes(fill = trait), show.legend = F) +
+  geom_hline(yintercept = 15) +
+  facet_grid(region~., scale = "free") +
+  labs(title="", x="", y="Participants per trait per region") +
+  theme( axis.text.x = element_text(angle = -45, hjust = 0) ) + 
+  PSA_theme
+
+ggsave("figures/participants_per_trait_per_region.png", width = 15, height = 8)
+```
+
+### Participants per lab
+
+```{r n-per-lab}
+labs <- data %>%
+  unite(lab, country, lab) %>%
+  group_by(region, lab, user_id) %>%
+  summarise() %>%
+  ungroup() %>%
+  count(region, lab) %>%
+  arrange(region, lab)
+
+knitr::kable(labs) %>%
+  kable_styling("striped")
+```
+
+
+# Analyses
+
+## Main Analysis
+
+First, we will calculate the average rating for each face separately for each of the 13 traits. Like Oosterhof and Todorov (2008), we will then subject these mean ratings to principal component analysis with orthogonal components and no rotation. Using the criteria reported in Oosterhof and Todorov’s (2008) paper, we will retain and interpret the components with an Eigenvalue > 1. 
+
+### Calculate Alphas
+
+```{r calc-alphas, eval = FALSE}
+
+# takes a long time, so saves the results and loads from a file in the next chunk if set to eval = FALSE
+data_alpha <- data %>%
+  dplyr::select(user_id, region, stim_id, rating, trait) %>%
+  spread(stim_id, rating, sep = "_") %>%
+  group_by(trait, region) %>%
+  nest() %>%
+  mutate(alpha = map(data, function(d) {
+    if (dim(d)[1] > 2) {
+      # calculate cronbach's alpha
+      subdata <- d %>%
+        as_tibble() %>%
+        dplyr::select(-user_id) %>%
+        t()
+
+      capture.output(suppressWarnings(a <- psych::alpha(subdata)))
+      a$total["std.alpha"] %>% pluck(1) %>% round(3)
+    } else {
+      NA
+    }
+  })) %>%
+  dplyr::select(-data) %>%
+  unnest(alpha) %>%
+  ungroup()
+
+saveRDS(data_alpha, file = "data/alphas.RDS")
+```
+
+```{r alpha-table}
+
+data_alpha <- readRDS("data/alphas.RDS")
+
+n_alpha <- data %>%
+  dplyr::select(user_id, region, trait) %>%
+  distinct() %>%
+  count(region, trait) %>%
+  left_join(data_alpha, by = c("region", "trait")) %>%
+  mutate(
+    trait = as.factor(trait),
+    region = str_replace(region, " (and|&) ", " &\n"),
+    region = as.factor(region),
+    region = factor(region, levels = rev(levels(region)))
+  )
+
+n_alpha %>%
+  mutate(stat = paste("α =", alpha, "<br>n =", n)) %>%
+  dplyr::select(Region = region, stat, trait) %>%
+  spread(trait, stat) %>%
+  knitr::kable("html", escape = FALSE) %>%
+  column_spec(2:14, width = "7%") %>%
+  kable_styling("striped", font_size = 9) %>%
+  save_kable("figures/alpha.html")
+```
+
+```{r alpha-plot, fig.width=18, fig.height=10}
+
+ggplot(n_alpha) +
+  geom_tile(aes(trait, region, fill=alpha >=.7), 
+           color = "grey20", show.legend = F) +
+  geom_text(aes(trait, region, label=sprintf("α = %0.2f\nn = %.0f", alpha, n)), color = "black", size = 5) +
+  scale_y_discrete(drop=FALSE) +
+  scale_x_discrete(position = "top") +
+  labs(x="", y="", title="") +
+  scale_fill_manual(values = c("white", "red")) +
+  PSA_theme
+
+ggsave("figures/alphas.png", width = 18, height = 10)
+
+```
+
+
+### Calculate Aggregate Scores
+
+```{r calc-agg-scores}
+
+data_agg <- data %>%
+  group_by(region, trait, stim_id) %>%
+  summarise(rating = mean(rating)) %>%
+  ungroup() %>%
+  spread(trait, rating)
+
+write_csv(data_agg, "data/psa001_agg_subset.csv")
+
+```
+
+```{r agg-plot, fig.width=15, fig.height = 8}
+data_agg %>%
+  gather("trait", "rating", aggressive:weird) %>%
+  ggplot(aes(rating, fill = trait)) +
+  geom_density(show.legend = F) +
+  facet_grid(region~trait) +
+  PSA_theme
+
+ggsave("figures/agg_scores.png", width = 15, height = 8)
+```
+
+### Principal Component Analysis (PCA)
+
+The number of components to extract was determined using eigenvalues > 1 for each world region. PCA was conducted using the `psych::principal()` function with `rotate="none"`.
+
+```{r pca-function}
+# function to calculate PCA
+
+psa_pca <- function(d) {
+  traits <- dplyr::select(d, -stim_id) %>% 
+    dplyr::select_if(colSums(!is.na(.)) > 0) # omits missing traits
+  
+  # principal components analysis (SPSS-style, following Oosterhof & Todorov)
+  ev <- eigen(cor(traits))$values
+  nfactors <- sum(ev > 1)
+  
+  pca <- principal(
+    traits, 
+    nfactors=nfactors, 
+    rotate="none"
+  )
+  
+  stats <- pca$Vaccounted %>% 
+    as.data.frame() %>%
+    rownames_to_column() %>%
+    mutate(type = "stat")
+  
+  unclass(pca$loadings) %>%
+    as.data.frame() %>%
+    rownames_to_column() %>%
+    mutate(type = "trait") %>%
+    bind_rows(stats) %>%
+    gather("pc", "loading", 2:(ncol(.)-1))
+}
+```
+
+```{r pca}
+
+pca_analyses <- data_agg %>%
+  bind_rows(ot_data) %>%
+  group_by(region) %>%
+  nest() %>%
+  mutate(pca = map(data, psa_pca)) %>%
+  dplyr::select(-data) %>%
+  unnest(pca) %>%
+  ungroup() %>%
+  mutate(pc = str_replace(pc, "PC", "Component "))
+
+```
+
+#### Number of Components (and proportion variance) by region
+```{r pca-components}
+pca_analyses %>%
+  filter(rowname == "Proportion Var") %>%
+  group_by(region) %>%
+  mutate(nPCs = n()) %>%
+  ungroup() %>%
+  spread(pc, loading) %>%
+  dplyr::select(-rowname, -type) %>%
+  mutate_if(is.numeric, round, 3) %>%
+  knitr::kable("html") %>%
+  kable_styling("striped")
+```
+
+#### Trait Loadings by Region and Component
+
+```{r pca-trait-loadings, fig.width=15, fig.height=10}
+
+# order traits by P1 loading if loads positively on P1, or by -P2 loading otherwise
+trait_order <- pca_analyses %>%
+  filter(region == "(Oosterhof & Todorov, 2008)", type == "trait") %>%
+  spread(pc, loading) %>% 
+  arrange(ifelse(`Component 1`>0,`Component 1`,-`Component 2`)) %>% 
+  pull(rowname)
+
+pca_prop_var <- pca_analyses %>%
+  filter(rowname == "Proportion Var") %>%
+  dplyr::select(-rowname, -type) %>%
+  mutate(loading = round(loading, 2))
+
+pca_analyses %>%
+  filter(type == "trait") %>%
+  dplyr::select(-type) %>%
+  mutate(
+    trait = as.factor(rowname),
+    trait = factor(trait, levels = c(trait_order, "Prop.Var")),
+    loading = round(loading, 2)
+  ) %>%
+  ggplot() +
+  geom_tile(aes(pc, trait, fill=loading), show.legend = F) +
+  geom_text(aes(pc, trait, label=sprintf("%0.2f", loading)), color = "black") +
+  geom_text(data = pca_prop_var, aes(pc, y = 14, label=sprintf("%0.2f", loading)), color = "black") +
+  scale_y_discrete(drop=FALSE) +
+  scale_x_discrete(position = "top") + 
+  scale_fill_gradient2(low = "dodgerblue", mid = "grey90", high = "#FF3333", limits=c(-1.1, 1.1)) +
+  facet_wrap(~region, scales = "fixed", ncol = 4) +
+  labs(x = "", y = "", title="") +
+  PSA_theme
+
+ggsave("figures/PCA_loadings.png", width = 15, height = 10)
+```
+
+
+#### Replication Criteria (PCA)
+
+Oosterhof and Todorov’s valence-dominance model will be judged to have been replicated in a given world region if the first two components both have Eigenvalues > 1, the first component (i.e., the one explaining more of the variance in ratings) is correlated strongly (loading > .7) with trustworthiness and weakly (loading < .5) with dominance, and the second component (i.e., the one explaining less of the variance in ratings) is correlated strongly (loading > .7) with dominance and weakly (loading < .5) with trustworthiness. All three criteria need to be met to conclude that the model was replicated in a given world region.
+
+```{r pca-replication-criteria}
+
+pca_rep <- pca_analyses %>%
+  filter(
+    type == "trait", 
+    rowname %in% c("trustworthy", "dominant"),
+    pc %in% c("Component 1", "Component 2")
+  ) %>%
+  dplyr::select(-type) %>%
+  mutate(rowname = paste(pc, rowname)) %>%
+  dplyr::select(-pc) %>%
+  spread(rowname, loading) %>%
+  rename(Region = region) %>%
+  mutate(Replicated = ifelse(
+    `Component 1 dominant` < .5 & `Component 1 trustworthy` > .7 & 
+    `Component 2 dominant` > .7 & `Component 2 trustworthy` < .5,
+    "Yes", "No"
+  )) %>%
+  mutate_if(is.numeric, round, 3) %>%
+  knitr::kable("html", col.names = c("Region", "Dominant", "Trustworthy", "Dominant", "Trustworthy", "Replicated")) %>%
+  add_header_above(c(" " = 1, "Component 1" = 2, "Component 2" = 2, "  " = 1)) %>%
+  kable_styling("striped")
+
+save_kable(pca_rep, "figures/PCA_rep_criteria.html")
+
+pca_rep
+```
+
+### Factor Congruence (PCA)
+
+This analysis determines the congruence between the components from Oosterhof & Todorov (2008) and the components in each world region, using the `psych::factor.congruence` function. Congruence is labeled "not similar" for values < 0.85, "fairly similar", for values < 0.09, and "equal" for values >= 0.95.
+
+```{r pca-factor-congruence}
+
+# get loadings for original O&T2008
+ot2008_pca_loadings <- pca_analyses %>%
+  filter(region == "(Oosterhof & Todorov, 2008)", type == "trait") %>%
+  dplyr::select(-region, -type) %>%
+  spread(pc, loading) %>%
+  column_to_rownames()
+
+# run factor congruence for each region  
+fc_pca <- pca_analyses %>%
+  filter(type == "trait", region != "(Oosterhof & Todorov, 2008)") %>%
+  dplyr::select(-type) %>%
+  spread(pc, loading) %>%
+  group_by(region) %>%
+  nest() %>%
+  mutate(fc = map(data, function(d) {
+    loadings <- d %>%
+      as.data.frame() %>%
+      dplyr::select(rowname, `Component 1`, `Component 2`) %>%
+      arrange(rowname) %>%
+      column_to_rownames()
+    
+    psych::factor.congruence(loadings, 
+                             ot2008_pca_loadings, 
+                             digits = 4) %>%
+      as.data.frame() %>%
+      rownames_to_column(var = "regionPC")
+  })) %>%
+  dplyr::select(-data) %>%
+  unnest(fc) %>%
+  ungroup()
+
+pc_fc_table <- fc_pca %>%
+  gather(origPC, congruence, `Component 1`:`Component 2`) %>%
+  mutate(sig = case_when(
+           congruence < .85 ~ "not similar",
+           congruence < .95 ~ "fairly similar",
+           congruence >= .95 ~ "equal"
+         ),
+         congruence = sprintf("%0.3f", congruence)) %>%
+  filter(regionPC == origPC) %>%
+  dplyr::select(region, PC = regionPC, congruence, sig) %>%
+  gather(k, v, congruence, sig) %>%
+  unite(PC, PC, k, remove = T) %>%
+  spread(PC, v) %>%
+  knitr::kable("html", digits = 3, align = 'lrlrl', escape = F,
+               col.names = c("Region", "Loading", "Congruence", "Loading", "Congruence")) %>%
+  add_header_above(c(" " = 1, "Component 1" = 2, "Component 2" = 2)) %>%
+  kable_styling("striped")
+
+save_kable(pc_fc_table, "figures/PCA_factor_congruence.html")
+
+pc_fc_table
+```
+
+## Robustness Checks
+
+### Exploratory Factor Analysis (EFA)
+
+The number of factors to extract was determined using parallel analysis (`paran::paran()`) for each world region. EFA was conducted using the `psych::fa()` function with all default options.
+
+```{r efa-function}
+# function to calculate EFA
+
+psa_efa <- function(d) {
+  traits <- dplyr::select(d, -stim_id) %>% 
+    dplyr::select_if(colSums(!is.na(.)) > 0) # omits missing traits
+  
+  # Parallel Analysis with Dino's 'paran' package. 
+  nfactors <- paran(traits, iterations = 5000, 
+          centile = 0, quietly = TRUE, 
+          status = FALSE, all = TRUE, 
+          cfa = TRUE, graph = FALSE)
+  
+  efa <- psych::fa(traits, nfactors$Retained) 
+  
+  stats <- efa$Vaccounted %>% 
+    as.data.frame() %>%
+    rownames_to_column() %>%
+    mutate(type = "stat")
+  
+  unclass(efa$loadings) %>%
+    as.data.frame() %>%
+    rownames_to_column() %>%
+    mutate(type = "trait") %>%
+    bind_rows(stats) %>%
+    gather("mr", "loading", 2:(ncol(.)-1))
+}
+```
+
+Calculate for each region
+
+```{r efa, message=FALSE, results="hide"}
+
+efa_analyses <- data_agg %>%
+  bind_rows(ot_data) %>%
+  group_by(region) %>%
+  nest() %>%
+  mutate(efa = map(data, psa_efa)) %>%
+  dplyr::select(-data) %>%
+  unnest(efa) %>%
+  ungroup() %>%
+  mutate(mr = str_replace(mr, "MR", "Factor "))
+
+```
+
+#### Number of Factors (and proportion variance) by region
+
+Note: many of the analyses will produce warnings in the subset version.
+
+```{r efa-factors}
+efa_analyses %>%
+  filter(rowname == "Proportion Var") %>%
+  group_by(region) %>%
+  mutate(nMRs = n()) %>%
+  ungroup() %>%
+  spread(mr, loading) %>%
+  dplyr::select(-rowname, -type) %>%
+  mutate_if(is.numeric, round, 3) %>%
+  knitr::kable("html") %>%
+  kable_styling("striped")
+```
+
+#### Trait Loadings by Region and Factor
+
+```{r efa-trait-loadings, fig.width=15, fig.height=10}
+
+efa_prop_var <- efa_analyses %>%
+  filter(rowname == "Proportion Var") %>%
+  dplyr::select(-rowname, -type) %>%
+  mutate(loading = round(loading, 2))
+
+efa_analyses %>%
+  filter(type == "trait") %>%
+  dplyr::select(-type) %>%
+  mutate(
+    trait = as.factor(rowname),
+    trait = factor(trait, levels = c(trait_order, "Prop.Var")),
+    loading = round(loading, 2)
+  ) %>%
+  ggplot() +
+  geom_tile(aes(mr, trait, fill=loading), show.legend = F) +
+  geom_text(aes(mr, trait, label=sprintf("%0.2f", loading)), color = "black") +
+  geom_text(data = efa_prop_var, aes(mr, y = 14, label=sprintf("%0.2f", loading)), color = "black") +
+  scale_y_discrete(drop=FALSE) +
+  scale_x_discrete(position = "top") + 
+  scale_fill_gradient2(low = "dodgerblue", mid = "grey90", high = "#FF3333", limits=c(-1.1, 1.1)) +
+  facet_wrap(~region, scales = "fixed", ncol = 4) +
+  labs(x = "", y = "", title="") +
+  PSA_theme
+
+ggsave("figures/EFA_loadings.png", width = 15, height = 10)
+```
+
+
+#### Replication Criteria (EFA)
+
+Oosterhof and Todorov’s valence-dominance model will be judged to have been replicated in a given world region if the the first factor is correlated strongly (loading > .7) with trustworthiness and weakly (loading < .5) with dominance, and the second factor is correlated strongly (loading > .7) with dominance and weakly (loading < .5) with trustworthiness. All these criteria need to be met to conclude that the model was replicated in a given world region.
+
+```{r efa-replication-criteria}
+
+efa_rep <- efa_analyses %>%
+  filter(
+    type == "trait", 
+    rowname %in% c("trustworthy", "dominant"),
+    mr %in% c("Factor 1", "Factor 2")
+  ) %>%
+  dplyr::select(-type) %>%
+  mutate(rowname = paste(mr, rowname)) %>%
+  dplyr::select(-mr) %>%
+  spread(rowname, loading) %>%
+  rename(Region = region) %>%
+  mutate(Replicated = ifelse(
+    `Factor 1 dominant` < .5 & `Factor 1 trustworthy` > .7 & 
+    `Factor 2 dominant` > .7 & `Factor 2 trustworthy` < .5,
+    "Yes", "No"
+  )) %>%
+  mutate_if(is.numeric, round, 3) %>%
+  knitr::kable("html", col.names = c("Region", "Dominant", "Trustworthy", "Dominant", "Trustworthy", "Replicated")) %>%
+  add_header_above(c(" " = 1, "Factor 1" = 2, "Factor 2" = 2, "  " = 1)) %>%
+  kable_styling("striped")
+
+save_kable(efa_rep, "figures/EFA_rep_criteria.html")
+
+efa_rep
+
+```
+
+### Factor Congruence (EFA)
+
+This analysis determines the congruence between the factors from Oosterhof & Todorov (2008) and the factors in each world region, using the `psych::factor.congruence` function. Congruence is labeled "not similar" for values < 0.85, "fairly similar", for values < 0.09, and "equal" for values >= 0.95.
+
+```{r efa-factor-congruence}
+
+# get loadings for original O&T2008
+ot2008_efa_loadings <- efa_analyses %>%
+  filter(region == "(Oosterhof & Todorov, 2008)", type == "trait") %>%
+  dplyr::select(-region, -type) %>%
+  spread(mr, loading) %>%
+  column_to_rownames()
+
+# run factor congruence for each region 
+fc_efa <- efa_analyses %>%
+  filter(type == "trait", region != "(Oosterhof & Todorov, 2008)") %>%
+  dplyr::select(-type) %>%
+  spread(mr, loading) %>%
+  group_by(region) %>%
+  nest() %>%
+  mutate(fc = map(data, function(d) {
+    loadings <- d %>%
+      as.data.frame() %>%
+      dplyr::select(rowname, `Factor 1`, `Factor 2`) %>%
+      arrange(rowname) %>%
+      column_to_rownames()
+    
+    psych::factor.congruence(loadings, 
+                             ot2008_efa_loadings, 
+                             digits = 4) %>%
+  as.data.frame() %>%
+  rownames_to_column(var = "regionMR")
+  })) %>%
+  dplyr::select(-data) %>%
+  unnest(fc) %>%
+  ungroup()
+
+mr_fc_table <- fc_efa %>%
+  gather(origMR, congruence, `Factor 1`:`Factor 2`) %>%
+  mutate(sig = case_when(
+           congruence < .85 ~ "not similar",
+           congruence < .95 ~ "fairly similar",
+           congruence >= .95 ~ "equal"
+         ),
+         congruence = sprintf("%0.3f", congruence)) %>%
+  filter(regionMR == origMR) %>%
+  dplyr::select(region, MR = regionMR, congruence, sig) %>%
+  gather(k, v, congruence, sig) %>%
+  unite(MR, MR, k, remove = T) %>%
+  spread(MR, v) %>%
+  knitr::kable("html", digits = 3, align = 'lrlrl', 
+               col.names = c("Region", "Loading", "Congruence", "Loading", "Congruence")) %>%
+  add_header_above(c(" " = 1, "Factor 1" = 2, "Factor 2" = 2)) %>%
+  kable_styling("striped")
+
+
+save_kable(mr_fc_table, "figures/EFA_factor_congruence.html")
+
+mr_fc_table
+```
+

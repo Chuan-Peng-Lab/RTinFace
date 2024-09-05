@@ -179,14 +179,3 @@ fulldata %>%
   theme_classic()+
   ggtitle("Figure 2. Density plot for reaction time distribution across different traits")
 ```
-
-
-
-
-
-
-
-
-
-
-

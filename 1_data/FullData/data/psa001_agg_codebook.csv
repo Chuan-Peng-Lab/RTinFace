@@ -1,0 +1,20 @@
+variable_name,variable_description,variable_values
+region,world region as defined in the stage 1 RR,Africa; Asia; Australia & New Zealand; Central America & Mexico; Eastern Europe; Middle East; Scandanavia; South America; UK; USA & Canada; Western Europe
+stim_id,"target image - first character designates race, second character designates gender, followed by a unique identifier mathes matches Target in the CFD dataset",
+stim_age,Estimate the approximate age of this person (in years)? ,18.7 to 34.9
+stim_sex,target sex,female; male
+stim_eth,target self-identified race,white; black; asian; latinx
+aggressive,average rated aggression,1 to 9
+attractive,average rated attractiveness,1 to 9
+caring,average rated caringness,1 to 9
+confident,average rated confidence,1 to 9
+dominant,average rated dominance,1 to 9
+emostable,average rated emotional stability,1 to 9
+intelligent,average rated intelligence,1 to 9
+mean,average rated meanness,1 to 9
+old,average rated oldness,1 to 9
+responsible,average rated responsibility,1 to 9
+sociable,average rated sociability,1 to 9
+trustworthy,average rated trustworthiness,1 to 9
+unhappy,average rated unhappiness,1 to 9
+weird,average rated weirdness,1 to 9

@@ -1,10 +1,10 @@
-# RT modeling
+# RT in Social Faces
 
 ## Project Description
 
-This repository provides the tools and data necessary to explore the relationship between response time and extremity in social judgments, with a particular focus on cultural differences. For any questions or issues, please contact the lead researcher.
+Question: what is role of RT in social judgement of faces?
 
-We are using an open dataset from PSA001. Participants (N = 11,481) were drawn from diverse cultural backgrounds across 45 countries. The dataset captures a wide range of social judgments and is analyzed through machine learning models and hierarchical general linear models. The study identifies response time as a significant predictor of rating extremity, with cultural variables also playing a critical role in the analysis.
+Data sources: [PSA001](https://doi.org/10.1038/s41562-020-01007-2). We downloaded both the [exploratory data](https://osf.io/yrveh/) and [full data]( https://osf.io/jfwtr/).
 
 ## Version History
 
@@ -12,16 +12,18 @@ We are using an open dataset from PSA001. Participants (N = 11,481) were drawn f
 
 ## Software Used
 
-- **Data Analysis:** Python, XGBoost, and R for machine learning and statistical modeling.
+- **Data Analysis:** Python (version?), XGBoost (version?), and R (version?) for machine learning and statistical modeling.
 - **Data Visualization:** Python (Matplotlib, Seaborn) for generating plots and figures.
 
 
-## Repository Structure
+## Folder Structure
 
 ```
 .
 ├── 1_Data
-│   ├── Processed
+│   ├── ExploratoryData # this was from the original, https://osf.io/yrveh/
+│   ├── FullData        # this was from the original, https://osf.io/jfwtr/
+│   └── Processed
 │
 ├── 2_Code
 │   ├── data
