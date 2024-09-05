@@ -1,5 +1,10 @@
+
+# ignore RStudio settings
 .Rproj.user
 .Rhistory
 .RData
 .Ruserdata
 .Renviron
+
+# ignore vscode settings
+.vscode/
