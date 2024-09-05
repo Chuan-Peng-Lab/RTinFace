@@ -8,6 +8,7 @@
 
 # ignore vscode settings
 .vscode/
+.ipynb_checkpoints/
 
 # ignore macOS system files
 .DS_Store
