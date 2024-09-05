@@ -8,3 +8,15 @@
 
 # ignore vscode settings
 .vscode/
+
+# ignore macOS system files
+.DS_Store
+*/.DS_Store
+*/*/.DS_Store
+*/*/*/.DS_Store
+*/*/*/*/.DS_Store
+
+*/.Rhistory
+*/*/.Rhistory
+*/*/*/.Rhistory
+*/*/*/*/.Rhistory
