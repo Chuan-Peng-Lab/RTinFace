@@ -58,7 +58,7 @@ Join experiment and questionnaire data
 
 ```{r exp-quest-join}
 ratings_raw <- dat_exp %>%
-  dplyr::left_join(session, by = c("user_id", "session_id")) %>%
+  dplyr::left_join(session, by = c("user_id", "session_id")) %>% # join session info into exp data
   dplyr::filter(user_status %in% c("guest", "registered")) %>%
   tidyr::separate(exp_name, c("psa", "language", "trait", "block"), 
            sep = "_") %>%
@@ -68,7 +68,7 @@ ratings_raw <- dat_exp %>%
   dplyr::filter(lab1 != "test") %>%
   tidyr::unite(lab_id, c("lab1", "lab2")) %>%
   dplyr::select(-psa, lang) %>%
-  dplyr::left_join(quest, by = c("session_id", "user_id")) %>%
+  dplyr::left_join(quest, by = c("session_id", "user_id")) %>% # join questionnaire data into the joint data
   dplyr::select(language, user_id = session_id, trait, 
                 stim_id = trial_name, 
                 order, rt, rating = dv,

@@ -4,7 +4,9 @@
 
 Question: what is role of RT in social judgement of faces?
 
-Data sources: [PSA001](https://doi.org/10.1038/s41562-020-01007-2). We downloaded both the [exploratory data](https://osf.io/yrveh/) and [full data]( https://osf.io/jfwtr/).
+Data source 1: [Jones et al., 2021, PSA001](https://doi.org/10.1038/s41562-020-01007-2). We downloaded both the [exploratory data](https://osf.io/yrveh/) and [full data]( https://osf.io/jfwtr/), but only used the exploratory dataset in the current analysis.
+
+Data source 2: [Zickfeld et al (2021)](https://www.sciencedirect.com/science/article/pii/S0022103121000378), proccessed data are available at https://osf.io/fj9bd/, not sure these data contains reaction times data.
 
 ## Version History
 
