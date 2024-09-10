@@ -210,3 +210,19 @@ labs <- df_valid_subset %>%
 knitr::kable(labs) %>%
   kableExtra::kable_styling("striped")
 ```
+
+
+### joint the stim info into the dataframe.
+```{r join the stim info}
+stim_info_simple <- stim_info %>%
+      dplyr::select(-Gender, -Race) %>%
+      # column names to lower case
+      dplyr::rename_all(tolower) %>%
+      # add prefixe "stim_" to all columns except "stim_id"
+      dplyr::rename_all(~paste0("stim_", .)) %>%
+      dplyr::rename(stim_id = stim_target)
+      
+
+df_valid_subset <- df_valid_subset %>%
+  left_join(stim_info_simple, by = c("stim_id"))
+```
