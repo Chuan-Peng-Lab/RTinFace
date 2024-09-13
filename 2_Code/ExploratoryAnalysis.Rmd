@@ -1,0 +1,93 @@
+---
+title: "Exploratory Analysis"
+author: "hcp4715"
+date: "`r format(Sys.Date(), '%Y-%m-%d')`"
+output: html_document
+---
+
+Need to have a cleaner idea for the exploratory analysis.
+
+# Rationale of the analysis
+
+[Hester et al., 2021](https://doi.org/10.1177/09567976211019950): Hierarchcial Bayesian model with *brms*. Get eight variance terms. Then compared the variance by ICC.
+
+> variance across perceivers, $\tau_{j00}$; variance across targets, $\tau_{k00}$; variance across countries, $\tau_{l00}$; variance across regions, $\tau_{m00}$; variance of the interaction between perceivers and targets, $\tau_{b00}$; variance of the interaction between targets and countries, $\tau_{c00}$; variance of the interaction between targets and regions, $\tau_{d00}$; and the Level 1 error term, $\sigma^2$.
+
+<!-- the text below in a quote-->
+
+>Consider an example in which country ICC is .80. This result would indicate that 80% of the variance in a particular trait impression is due to between-country differences, suggesting that people in different countries were mostly drawing on shared cultural experiences when forming impressions. In contrast, if country ICCs are very low (e.g., .02), only 2% of the variance in trait impressions would be due to between-country differences, suggesting that other sources of variance were primarily driving the impressions. This latter situation highlights the importance of knowing the ICC. If an ICC is .02, no matter how many country-level variables are included in a model, they can together explain at most 2% of the variance in the trait impression.
+
+Jaeger & Jones (2022):
+> To prevent this, we relied on Elastic Net regression (Hastie et al., 2009). Elastic Nets are linear models that simultaneously (a) shrink predictors to reduce overfitting through regularization and (b) perform variable selection by setting the coefficients of uninformative parameters to zero. Thus, this approach is ideally suited to examine the relative importance of different facial characteristics in predicting personality impressions.
+
+```{r}
+# install pacman if not installed yet
+if (!require("pacman")) install.packages("pacman")
+
+# use pacman::p_load to load or install tidyverse
+pacman::p_load("tidyverse", "ranger", "cowplot", "randomForest")
+
+# library("xgboost")
+set.seed(1122)
+```
+
+```{r}
+df <- read.csv(here::here("2_Code", "data", "psa001_ratings_valid_subset.csv"))
+```
+
+### 使用randomForest包实现随机森林
+
+```{r}
+df_rf <- df %>% 
+  dplyr::select(rating, rt, ethnicity, sex, age, trait, stim_id,
+                stim_ethnicity, stim_gender, stim_age) %>%
+      dplyr::mutate(rt = rt/1000) %>%
+      dplyr::slice_sample(n = 10000)%>%
+      tidyr::drop_na()
+
+rf_m1 <- randomForest(rt ~ rating + ethnicity + sex + age + trait + stim_ethnicity + stim_gender + stim_age + stim_id, 
+                data = df_rf, 
+                ntree = 100, 
+                mtry = 3, 
+                importance = TRUE)
+
+```
+
+使用ranger包实现随机森林
+#https://www.coder.work/article/4762286，这篇blog里有谈到为什么使用不同的包做#https://arikuncoro.xyz/blog/data-science/r-python-sql-linux/the-comparison-between-randomforest-and-ranger/ 谈到了为什么运行速度会有差异
+#ranger: A Fast Implementation of Random Forests for High Dimensional Data in C++ and R DOI:10.18637/jss.v077.i01 介绍了Ranger包
+```{r}
+ranger_model <- df %>% 
+  dplyr::select(rating, rt, ethnicity, sex, age, trait, 
+                stim_ethnicity, stim_gender, stim_age) %>%
+      dplyr::mutate(rt = rt/1000) %>%
+      tidyr::drop_na()
+
+# running the code below will take about 10 min
+rf <- ranger("rt" ~ .,
+             data = ranger_model,          # 指定训练数据集
+             num.trees = 1000,             # 指定树的数量
+             mtry = 3,                     # 指定每个树节点随机选择的属性数量
+             importance = "permutation",   # 指定特征重要性估计的方法
+             sample.fraction = 0.7,        # 指定随机采样的比例
+             verbose = TRUE
+             )
+
+ranger::importance(rf)
+
+ranger::treeInfo(rf)
+```
+
+```{r}
+rf_importance <- importance(rf)
+importance_df <- data.frame(feature = names(rf$variable.importance),
+                            importance = rf$variable.importance)
+
+ggplot(importance_df, aes(x = reorder(feature,importance), y = importance)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  ggtitle("Feature Importance Plot") +
+  coord_flip()+
+  xlab("Features") +
+  geom_text(aes(label = importance), size=3, hjust = 0.8)+
+  ylab("Importance")
+```

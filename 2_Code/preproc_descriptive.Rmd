@@ -225,4 +225,7 @@ stim_info_simple <- stim_info %>%
 
 df_valid_subset <- df_valid_subset %>%
   left_join(stim_info_simple, by = c("stim_id"))
+
+# save the data
+write_csv(df_valid_subset, here::here("2_Code", "data", "psa001_ratings_valid_subset.csv"))
 ```
