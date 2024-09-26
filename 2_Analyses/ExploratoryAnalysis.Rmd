@@ -32,7 +32,7 @@ set.seed(1122)
 ```
 
 ```{r}
-df <- read.csv(here::here("2_Code", "data", "psa001_ratings_valid_subset.csv"))
+df <- read.csv(here::here("2_Analyses", "data", "psa001_ratings_valid_subset.csv"))
 ```
 
 ### 使用randomForest包实现随机森林
@@ -42,7 +42,7 @@ df_rf <- df %>%
   dplyr::select(rating, rt, ethnicity, sex, age, trait, stim_id,
                 stim_ethnicity, stim_gender, stim_age) %>%
       dplyr::mutate(rt = rt/1000) %>%
-      dplyr::slice_sample(n = 10000)%>%
+      #dplyr::slice_sample(n = 10000)%>%
       tidyr::drop_na()
 
 rf_m1 <- randomForest(rt ~ rating + ethnicity + sex + age + trait + stim_ethnicity + stim_gender + stim_age + stim_id, 
@@ -53,9 +53,8 @@ rf_m1 <- randomForest(rt ~ rating + ethnicity + sex + age + trait + stim_ethnici
 
 ```
 
-使用ranger包实现随机森林
-#https://www.coder.work/article/4762286，这篇blog里有谈到为什么使用不同的包做#https://arikuncoro.xyz/blog/data-science/r-python-sql-linux/the-comparison-between-randomforest-and-ranger/ 谈到了为什么运行速度会有差异
-#ranger: A Fast Implementation of Random Forests for High Dimensional Data in C++ and R DOI:10.18637/jss.v077.i01 介绍了Ranger包
+使用[AutoGluo](https://auto.gluon.ai/stable)来进行模型选择。
+
 ```{r}
 ranger_model <- df %>% 
   dplyr::select(rating, rt, ethnicity, sex, age, trait, 

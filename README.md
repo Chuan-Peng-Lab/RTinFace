@@ -27,7 +27,7 @@ Data source 2: [Zickfeld et al (2021)](https://www.sciencedirect.com/science/art
 │   ├── FullData        # this was from the original, https://osf.io/jfwtr/
 │   └── Processed
 │
-├── 2_Code
+├── 2_Analyses
 │   ├── data
 │   ├── bayesian
 │   ├── decisiontree
