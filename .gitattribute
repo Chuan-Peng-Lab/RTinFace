@@ -3,3 +3,5 @@
 
 # 对于特定的文件类型，如可执行脚本，可以设置执行权限
 *.sh exec
+*.sh   -crlf -diff -merge -text
+*.sh   attr:mode=100755
