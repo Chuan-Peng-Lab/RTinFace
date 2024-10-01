@@ -13,19 +13,20 @@ Need to have a cleaner idea for the exploratory analysis.
 
 > variance across perceivers, $\tau_{j00}$; variance across targets, $\tau_{k00}$; variance across countries, $\tau_{l00}$; variance across regions, $\tau_{m00}$; variance of the interaction between perceivers and targets, $\tau_{b00}$; variance of the interaction between targets and countries, $\tau_{c00}$; variance of the interaction between targets and regions, $\tau_{d00}$; and the Level 1 error term, $\sigma^2$.
 
+Most important lesson from Hester et al. 2021: Rating data for each trait were analyzed separately.
+
 <!-- the text below in a quote-->
 
->Consider an example in which country ICC is .80. This result would indicate that 80% of the variance in a particular trait impression is due to between-country differences, suggesting that people in different countries were mostly drawing on shared cultural experiences when forming impressions. In contrast, if country ICCs are very low (e.g., .02), only 2% of the variance in trait impressions would be due to between-country differences, suggesting that other sources of variance were primarily driving the impressions. This latter situation highlights the importance of knowing the ICC. If an ICC is .02, no matter how many country-level variables are included in a model, they can together explain at most 2% of the variance in the trait impression.
+> Consider an example in which country ICC is .80. This result would indicate that 80% of the variance in a particular trait impression is due to between-country differences, suggesting that people in different countries were mostly drawing on shared cultural experiences when forming impressions. In contrast, if country ICCs are very low (e.g., .02), only 2% of the variance in trait impressions would be due to between-country differences, suggesting that other sources of variance were primarily driving the impressions. This latter situation highlights the importance of knowing the ICC. If an ICC is .02, no matter how many country-level variables are included in a model, they can together explain at most 2% of the variance in the trait impression.
 
-Jaeger & Jones (2022):
-> To prevent this, we relied on Elastic Net regression (Hastie et al., 2009). Elastic Nets are linear models that simultaneously (a) shrink predictors to reduce overfitting through regularization and (b) perform variable selection by setting the coefficients of uninformative parameters to zero. Thus, this approach is ideally suited to examine the relative importance of different facial characteristics in predicting personality impressions.
+Jaeger & Jones (2022): \> To prevent this, we relied on Elastic Net regression (Hastie et al., 2009). Elastic Nets are linear models that simultaneously (a) shrink predictors to reduce overfitting through regularization and (b) perform variable selection by setting the coefficients of uninformative parameters to zero. Thus, this approach is ideally suited to examine the relative importance of different facial characteristics in predicting personality impressions.
 
 ```{r}
 # install pacman if not installed yet
 if (!require("pacman")) install.packages("pacman")
 
 # use pacman::p_load to load or install tidyverse
-pacman::p_load("tidyverse", "ranger", "cowplot", "randomForest")
+pacman::p_load("tidyverse", "ranger", "cowplot", "randomForest", "lme4","party")
 
 # library("xgboost")
 set.seed(1122)
@@ -35,25 +36,56 @@ set.seed(1122)
 df <- read.csv(here::here("2_Analyses", "data", "psa001_ratings_valid_subset.csv"))
 ```
 
+```{r replicate Hester et al., 2021}
+m_attractive <- df %>%
+      dplyr::filter(trait == "attractive") # %>%
+      # lme4::lmer(rating ~ 1 + (1|stim_id) + (1|user_id)  + (1|stim_id:user_id) + (1|country) 
+      #                  + (1|stim_id:country) + (1|region) + (1|stim_id:region), data = .)
+
+write_csv(m_attractive, here::here("2_Analyses", "data", "df_attractive.csv"))
+```
+
 ### 使用randomForest包实现随机森林
 
 ```{r}
 df_rf <- df %>% 
-  dplyr::select(rating, rt, ethnicity, sex, age, trait, stim_id,
+      dplyr::filter(trait == "old") %>%
+      dplyr::select(rating, rt, ethnicity, sex, age, stim_id, region,
                 stim_ethnicity, stim_gender, stim_age) %>%
       dplyr::mutate(rt = rt/1000) %>%
       #dplyr::slice_sample(n = 10000)%>%
-      tidyr::drop_na()
+      tidyr::drop_na() %>%
+      dplyr::mutate_if(is.character, as.factor)
 
-rf_m1 <- randomForest(rt ~ rating + ethnicity + sex + age + trait + stim_ethnicity + stim_gender + stim_age + stim_id, 
+# conditional RF, adopted from IJzerman et al., 2018, collabra: psycyhology
+set.seed(666)
+
+ctree <- party::ctree(rating ~  rt + ethnicity + sex + age + region + stim_ethnicity + stim_gender + stim_age + stim_id, 
+                      data = df_rf)
+plot(ctree)
+
+rf_m1 <- randomForest(rating ~ rt + ethnicity + sex + age + region + stim_ethnicity + stim_gender + stim_age + stim_id, 
                 data = df_rf, 
                 ntree = 100, 
                 mtry = 3, 
                 importance = TRUE)
 
+randomForest::varImpPlot(rf_m1)
+
+data.controls <- party::cforest_unbiased(ntree=100, mtry=4)
+rf_m2 <- party::cforest(rating ~ rt + ethnicity + sex + age + region + stim_ethnicity + stim_gender + stim_age + stim_id, 
+                        data = df_rf, 
+                        control = data.controls)
+
+myvarimp<-varimp(rf_m2)
+lattice::dotplot(sort(myvarimp), 
+        xlab="Variable Importance (predictors to right of dashed line differ from noise)", 
+        panel=function(x,y) {panel.dotplot(x, y, col='darkblue', pch=16, cex=1.1) 
+              panel.abline(v=abs(min(myvarimp)), col='red', lty='longdash', lwd=2)}
+        )
 ```
 
-使用[AutoGluo](https://auto.gluon.ai/stable)来进行模型选择。
+<!--可能可以使用[AutoGluo](https://auto.gluon.ai/stable)来进行模型选择，但是太耗时。-->
 
 ```{r}
 ranger_model <- df %>% 
@@ -78,11 +110,11 @@ ranger::treeInfo(rf)
 ```
 
 ```{r}
-rf_importance <- importance(rf)
-importance_df <- data.frame(feature = names(rf$variable.importance),
-                            importance = rf$variable.importance)
+rf_importance <- importance(rf_m1)
+importance_df <- data.frame(feature = names(rf_m1$variable.importance),
+                            importance = rf_m1$variable.importance)
 
-ggplot(importance_df, aes(x = reorder(feature,importance), y = importance)) +
+ggplot(importance_df, aes(x = reorder(feature, importance), y = importance)) +
   geom_bar(stat = "identity", fill = "steelblue") +
   ggtitle("Feature Importance Plot") +
   coord_flip()+

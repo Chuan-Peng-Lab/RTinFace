@@ -52,3 +52,10 @@ Data source 2: [Zickfeld et al (2021)](https://www.sciencedirect.com/science/art
 - **[2022.12-2024.08] [Wang Nan]:** Preliminary data processing and statistical analysis.
 - **[2022.12-2024.08] [Bai Songshi]:** Preliminary data processing and statistical analysis.
 
+<!--
+docker run -it --rm -v $(PWD):/home/jovyan/work -p 8888:8888 hcp4715/pymc:latest jupyter notebook 
+
+http://127.0.0.1:8888/tree
+
+you can increase /dev/shm size by passing '--shm-size=2.07gb' to 'docker run',
+-->
